@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction History - Risk Analysis</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0056ff;
+            --primary-dark: #0046d5;
+            --success: #10b981;
+            --success-bg: #d1fae5;
+            --danger: #ef4444;
+            --danger-bg: #fee2e2;
+            --warning: #f59e0b;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --bg-body: #f3f4f6;
+            --bg-card: #ffffff;
+            --border-color: #e5e7eb;
+            --sidebar-bg: #0056ff;
+            --sidebar-hover: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 2.5rem 0;
+            flex-shrink: 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+            z-index: 50;
+        }
+
+        .sidebar-logo {
+            padding: 0 2rem;
+            margin-bottom: 3.5rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex: 1;
+            padding: 0 1rem;
+        }
+
+        .sidebar-item {
+            padding: 0.85rem 1.25rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .sidebar-item:hover {
+            background-color: var(--sidebar-hover);
+            color: white;
+        }
+
+        .sidebar-item.active {
+            background-color: white;
+            color: var(--primary);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            padding: 0 1.5rem;
+            margin-top: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn-exit {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.5rem 2rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            font-weight: 500;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn-exit:hover {
+            background-color: white;
+            color: var(--primary);
+            border-color: white;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 2.5rem 3.5rem;
+            background-color: var(--bg-body);
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+            flex-shrink: 0;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+            animation: fadeIn 0.6s ease-out both;
+        }
+
+        .system-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            border: 1px solid var(--border-color);
+            animation: fadeIn 0.6s ease-out 0.1s both;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        /* Summary Cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            flex-shrink: 0;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .summary-card:nth-child(1) { animation-delay: 0.1s; }
+        .summary-card:nth-child(2) { animation-delay: 0.2s; }
+        .summary-card:nth-child(3) { animation-delay: 0.3s; }
+
+        .summary-card::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            border-radius: 0 12px 12px 0;
+        }
+
+        .summary-card.total::after { background: var(--primary); }
+        .summary-card.high::after { background: var(--danger); }
+        .summary-card.low::after { background: var(--warning); }
+
+        .card-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1;
+        }
+
+        /* Table Area Layout */
+        .table-section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
+        }
+
+        .table-controls {
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            background: #f9fafb;
+            flex-shrink: 0;
+        }
+
+        .table-controls h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        select {
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            outline: none;
+            background: white;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-main);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+            padding-right: 2.5rem;
+        }
+
+        .table-scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        
+        .table-scroll-area::-webkit-scrollbar { width: 6px; }
+        .table-scroll-area::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #f9fafb;
+            z-index: 10;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th, td {
+            padding: 1.25rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            font-size: 0.95rem;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr { transition: background 0.2s ease; }
+        tr:hover td { background: #f9fafb; }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.35rem 0.8rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .status-fraud {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .status-safe {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-logo">Risk Analysis</div>
+        <div class="sidebar-menu">
+            <a href="/home" class="sidebar-item">Prediction Model</a>
+            <a href="/history" class="sidebar-item active">History</a>
+            <a href="/analysis" class="sidebar-item">Data Analysis</a>
+        </div>
+        <div class="sidebar-footer">
+            <a href="/" class="btn-exit">Exit</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        
+        <!-- Header (Fixed) -->
+        <header class="header">
+            <h1>Transaction History</h1>
+            <div class="system-status">
+                <div class="status-dot"></div> Active
+            </div>
+        </header>
+
+        <!-- Summary Cards (Fixed) -->
+        <div class="summary-cards">
+            <div class="summary-card total">
+                <div class="card-title">TOTAL TRANSACTIONS</div>
+                <div class="card-value" id="totalCount">0</div>
+            </div>
+            <div class="summary-card high">
+                <div class="card-title">HIGH RISK</div>
+                <div class="card-value" style="color: var(--danger);" id="highRiskCount">0</div>
+            </div>
+            <div class="summary-card low">
+                <div class="card-title">LOW RISK</div>
+                <div class="card-value" style="color: var(--warning);" id="lowRiskCount">0</div>
+            </div>
+        </div>
+
+        <!-- Table Section (Flex container, inner scrolling) -->
+        <div class="table-section">
+            <div class="table-controls">
+                <h2>Transaction Records</h2>
+                <select id="riskFilter" onchange="filterTable()">
+                    <option value="all">All Stages</option>
+                    <option value="high">High Risk Only</option>
+                    <option value="low">Low Risk Only</option>
+                </select>
+            </div>
+            
+            <div class="table-scroll-area">
+                <table id="ledgerTable">
+                    <thead>
+                        <tr>
+                            <th>Identity</th>
+                            <th>Contract Type</th>
+                            <th>Credit Amount</th>
+                            <th>Occupation Type</th>
+                            <th>Age</th>
+                            <th>Risk Score</th>
+                            <th>Risk Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in predictions %}
+                        <tr>
+                            <td style="font-weight: 600; color: var(--text-main);">#{{ row[0] }}</td>
+                            <td>{{ row[1]|title }}</td>
+                            <td>₹{{ "{:,.2f}".format(row[2]) }}</td>
+                            <td>{{ row[6]|title }}</td>
+                            <td>{{ "{:.1f}".format(row[3]) }}</td>
+                            <td style="font-weight: 600;">
+                                {% if row[5] is not none %}
+                                    {{ "{:.1f}".format(row[5]) }}%
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if 'High Risk' in row[4] %}
+                                    <span class="status-badge status-fraud">High Risk</span>
+                                {% else %}
+                                    <span class="status-badge status-safe">Low Risk</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state">No records found.</div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function filterTable() {
+            const filterValue = document.getElementById('riskFilter').value;
+            const table = document.getElementById('ledgerTable');
+            const tbody = table.getElementsByTagName('tbody')[0];
+            const rows = tbody.getElementsByTagName('tr');
+            
+            let total = 0;
+            let highRisk = 0;
+            let lowRisk = 0;
+
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i].getElementsByClassName('empty-state').length > 0) continue;
+
+                const statusCell = rows[i].getElementsByTagName('td')[6];
+                if (statusCell) {
+                    const textValue = statusCell.textContent || statusCell.innerText;
+                    const isHighRisk = textValue.includes('High Risk');
+                    
+                    if (isHighRisk) {
+                        highRisk++;
+                    } else {
+                        lowRisk++;
+                    }
+                    total++;
+
+                    if (filterValue === 'all') {
+                        rows[i].style.display = '';
+                    } else if (filterValue === 'high' && isHighRisk) {
+                        rows[i].style.display = '';
+                    } else if (filterValue === 'low' && !isHighRisk) {
+                        rows[i].style.display = '';
+                    } else {
+                        rows[i].style.display = 'none';
+                    }
+                }
+            }
+
+            document.getElementById('totalCount').innerText = total;
+            document.getElementById('highRiskCount').innerText = highRisk;
+            document.getElementById('lowRiskCount').innerText = lowRisk;
+        }
+
+        document.addEventListener('DOMContentLoaded', filterTable);
+    </script>
+</body>
+</html>

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Analysis Scanner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0056ff;
+            --primary-dark: #0046d5;
+            --success: #10b981;
+            --success-bg: #d1fae5;
+            --danger: #ef4444;
+            --danger-bg: #fee2e2;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --bg-body: #f3f4f6;
+            --bg-card: #ffffff;
+            --border-color: #e5e7eb;
+            --sidebar-bg: #0056ff;
+            --sidebar-hover: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 2.5rem 0;
+            flex-shrink: 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+            z-index: 50;
+        }
+
+        .sidebar-logo {
+            padding: 0 2rem;
+            margin-bottom: 3.5rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex: 1;
+            padding: 0 1rem;
+        }
+
+        .sidebar-item {
+            padding: 0.85rem 1.25rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .sidebar-item:hover {
+            background-color: var(--sidebar-hover);
+            color: white;
+        }
+
+        .sidebar-item.active {
+            background-color: white;
+            color: var(--primary);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            padding: 0 1.5rem;
+            margin-top: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn-exit {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.5rem 2rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            font-weight: 500;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn-exit:hover {
+            background-color: white;
+            color: var(--primary);
+            border-color: white;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 2.5rem 3.5rem;
+            background-color: var(--bg-body);
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+            flex-shrink: 0;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+            animation: fadeIn 0.6s ease-out both;
+        }
+
+        .system-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            border: 1px solid var(--border-color);
+            animation: fadeIn 0.6s ease-out 0.1s both;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .card-container {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 2rem;
+            /* Scrollbar styling */
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        
+        .card-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .card-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 3.5rem;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255,255,255,0.5);
+            max-width: 950px;
+            margin: 0 auto;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input, select {
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.95rem 1.2rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.01);
+            appearance: none; /* Helps style selects uniformly */
+        }
+        
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(0, 86, 255, 0.1);
+            background: #ffffff;
+        }
+
+        input::placeholder {
+            color: #9ca3af;
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            padding: 1.2rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 8px 20px rgba(0, 86, 255, 0.2);
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(0, 86, 255, 0.3);
+        }
+
+        .result-container {
+            margin-top: 2.5rem;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border: 1px solid transparent;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .result-danger {
+            background: var(--danger-bg);
+            color: var(--danger);
+            border-color: #fecaca;
+        }
+
+        .result-safe {
+            background: var(--success-bg);
+            color: var(--success);
+            border-color: #a7f3d0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-logo">Risk Analysis</div>
+        <div class="sidebar-menu">
+            <a href="/home" class="sidebar-item active">Prediction Model</a>
+            <a href="/history" class="sidebar-item">History</a>
+            <a href="/analysis" class="sidebar-item">Data Analysis</a>
+        </div>
+        <div class="sidebar-footer">
+            <a href="/" class="btn-exit">Exit</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <header class="header">
+            <h1>Transaction Analyzer</h1>
+            
+        </header>
+
+        <div class="card-container">
+            <div class="card">
+                <form action="/predict" method="post">
+                    <div class="form-grid">
+                        
+                        <div class="input-group">
+                            <label for="contract_type">Contract Type</label>
+                            <select name="contract_type" id="contract_type" required>
+                                <option value="cash" {% if request.form.get('contract_type') == 'cash' %}selected{% endif %}>Cash loans</option>
+                                <option value="revolving" {% if request.form.get('contract_type') == 'revolving' %}selected{% endif %}>Revolving loans</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="age">Age</label>
+                            <input type="number" name="age" min="18" max="100" value="{{ request.form.get('age', '') }}" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="credit">Credit Amount</label>
+                            <input type="number" step="0.01" name="credit" id="credit" placeholder="e.g. 500000" value="{{ request.form.get('credit', '') }}" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="income">Total Income</label>
+                            <input type="number" step="0.01" name="income" id="income" placeholder="e.g. 150000" value="{{ request.form.get('income', '') }}" required>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="income_type">Income Type</label>
+                            <select name="income_type" id="income_type" required>
+                                <option value="working" {% if request.form.get('income_type') == 'working' %}selected{% endif %}>Working</option>
+                                <option value="state servant" {% if request.form.get('income_type') == 'state servant' %}selected{% endif %}>State servant</option>
+                                <option value="commercial associate" {% if request.form.get('income_type') == 'commercial associate' %}selected{% endif %}>Commercial associate</option>
+                                <option value="pensioner" {% if request.form.get('income_type') == 'pensioner' %}selected{% endif %}>Pensioner</option>
+                                <option value="student" {% if request.form.get('income_type') == 'student' %}selected{% endif %}>Student</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="education">Education Type</label>
+                            <select name="education" id="education" required>
+                                <option value="higher education" {% if request.form.get('education') == 'higher education' %}selected{% endif %}>Higher education</option>
+                                <option value="secondary" {% if request.form.get('education') == 'secondary' %}selected{% endif %}>Secondary / secondary special</option>
+                                <option value="incomplete higher" {% if request.form.get('education') == 'incomplete higher' %}selected{% endif %}>Incomplete higher</option>
+                                <option value="lower secondary" {% if request.form.get('education') == 'lower secondary' %}selected{% endif %}>Lower secondary</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="occupation_type">Occupation Type</label>
+                            <select name="occupation_type" id="occupation_type" required>
+                                <option value="Managers" {% if request.form.get('occupation_type') == 'Managers' %}selected{% endif %}>Managers</option>
+                                <option value="IT Staff" {% if request.form.get('occupation_type') == 'IT Staff' %}selected{% endif %}>IT Staff</option>
+                                <option value="Accountants" {% if request.form.get('occupation_type') == 'Accountants' %}selected{% endif %}>Accountants</option>
+                                <option value="Laborers" {% if request.form.get('occupation_type') == 'Laborers' %}selected{% endif %}>Laborers</option>
+                                <option value="Drivers" {% if request.form.get('occupation_type') == 'Drivers' %}selected{% endif %}>Drivers</option>
+                                <option value="Students" {% if request.form.get('occupation_type') == 'Students' %}selected{% endif %}>Students</option>
+                                <option value="Unemployed" {% if request.form.get('occupation_type') == 'Unemployed' %}selected{% endif %}>Unemployed</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="days_employed">Days Employed</label>
+                            <input type="number" name="days_employed" id="days_employed" placeholder="e.g. 365" value="{{ request.form.get('days_employed', '') }}" required>
+                        </div>
+
+                    </div>
+
+                    <button type="submit" class="btn-submit">Analyze Transaction</button>
+                </form>
+
+                {% if prediction_text %}
+                <div class="result-container {% if 'High Risk' in prediction_text %}result-danger{% else %}result-safe{% endif %}">
+                    <div>{{ prediction_text }}</div>
+                    {% if risk_score is defined %}
+                    <div style="font-size: 0.9rem; font-weight: 500; margin-top: 0.5rem; opacity: 0.9;">
+                        Risk Score: {{ risk_score }}%
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

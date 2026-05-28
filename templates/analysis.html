@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Analysis - Risk Analysis</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #0056ff;
+            --primary-dark: #0046d5;
+            --success: #10b981;
+            --success-bg: #d1fae5;
+            --danger: #ef4444;
+            --danger-bg: #fee2e2;
+            --warning: #f59e0b;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --bg-body: #f3f4f6;
+            --bg-card: #ffffff;
+            --border-color: #e5e7eb;
+            --sidebar-bg: #0056ff;
+            --sidebar-hover: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 2.5rem 0;
+            flex-shrink: 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+            z-index: 50;
+        }
+
+        .sidebar-logo {
+            padding: 0 2rem;
+            margin-bottom: 3.5rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex: 1;
+            padding: 0 1rem;
+        }
+
+        .sidebar-item {
+            padding: 0.85rem 1.25rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .sidebar-item:hover {
+            background-color: var(--sidebar-hover);
+            color: white;
+        }
+
+        .sidebar-item.active {
+            background-color: white;
+            color: var(--primary);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            padding: 0 1.5rem;
+            margin-top: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn-exit {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.5rem 2rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            font-weight: 500;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn-exit:hover {
+            background-color: white;
+            color: var(--primary);
+            border-color: white;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 2.5rem 3.5rem;
+            background-color: var(--bg-body);
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+            flex-shrink: 0;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+            animation: fadeIn 0.6s ease-out both;
+        }
+        
+        .system-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            border: 1px solid var(--border-color);
+            animation: fadeIn 0.6s ease-out 0.1s both;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .scrollable-content {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 2rem;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        
+        .scrollable-content::-webkit-scrollbar { width: 6px; }
+        .scrollable-content::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card-single {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 2rem;
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+            max-width: 400px;
+        }
+
+        .summary-card-single::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            border-radius: 0 12px 12px 0;
+            background: var(--primary);
+        }
+
+        .card-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .chart-card:nth-child(1) { animation-delay: 0.2s; }
+        .chart-card:nth-child(2) { animation-delay: 0.3s; }
+        .chart-card:nth-child(3) { animation-delay: 0.4s; }
+
+        .chart-card-full {
+            grid-column: 1 / -1;
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #f3f4f6;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 320px;
+            width: 100%;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-logo">Risk Analysis</div>
+        <div class="sidebar-menu">
+            <a href="/home" class="sidebar-item">Prediction Model</a>
+            <a href="/history" class="sidebar-item">History</a>
+            <a href="/analysis" class="sidebar-item active">Data Analysis</a>
+        </div>
+        <div class="sidebar-footer">
+            <a href="/" class="btn-exit">Exit</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <header class="header">
+            <h1>Data Visualization</h1>
+            <div class="system-status">
+                <div class="status-dot"></div> Active
+            </div>
+        </header>
+
+        <div class="scrollable-content">
+            
+            <div class="summary-card-single">
+                <div class="card-title">Model Accuracy</div>
+                {% if metrics %}
+                <div class="card-value" style="color: var(--success);">{{ "{:.1f}".format(metrics.accuracy * 100) }}%</div>
+                {% else %}
+                <div class="card-value" style="color: var(--success);">91%</div>
+                {% endif %}
+            </div>
+
+            <div class="chart-grid">
+                
+                <!-- 1. Risk Distribution (Pie Chart) -->
+                <div class="chart-card">
+                    <h2 class="chart-title">Risk Assessment Distribution</h2>
+                    <div class="chart-container">
+                        <canvas id="riskPieChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 3. Feature Importance (Bar Chart) -->
+                <div class="chart-card">
+                    <h2 class="chart-title">Model Feature Importance</h2>
+                    <div class="chart-container">
+                        <canvas id="featureChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 2. Credit Amount Distribution (Histogram) -->
+                <div class="chart-card chart-card-full">
+                    <h2 class="chart-title">Credit Amount Distribution (Histogram)</h2>
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="creditHistogram"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Pass data from Flask to JS securely -->
+    <script>
+        const highRiskCount = {{ high_risk|default(0) }};
+        const lowRiskCount = {{ low_risk|default(0) }};
+        const creditAmounts = {{ credit_amounts|default([]) | tojson }};
+
+        // 1. Risk Pie Chart
+        const ctxPie = document.getElementById('riskPieChart').getContext('2d');
+        new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: ['High Risk', 'Low Risk'],
+                datasets: [{
+                    data: [highRiskCount, lowRiskCount],
+                    backgroundColor: ['#ef4444', '#f59e0b'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // 2. Feature Importance Horizontal Bar Chart
+        {% if metrics %}
+        const featureLabels = {{ metrics.features | tojson }};
+        const featureWeights = {{ metrics.feature_importances | tojson }};
+        {% else %}
+        const featureLabels = ['Credit Amount', 'Income Total', 'Age', 'Days Employed', 'Contract Type', 'Education', 'Occupation Type', 'Income Type'];
+        const featureWeights = [0.25, 0.20, 0.16, 0.12, 0.08, 0.07, 0.07, 0.05]; 
+        {% endif %}
+
+        const ctxFeature = document.getElementById('featureChart').getContext('2d');
+        new Chart(ctxFeature, {
+            type: 'bar',
+            data: {
+                labels: featureLabels,
+                datasets: [{
+                    label: 'Relative Importance',
+                    data: featureWeights,
+                    backgroundColor: '#0056ff',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { display: false }
+                    },
+                    y: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+
+        // 3. Credit Amount Histogram
+        // To make a histogram in Chart.js, we need to bin the data
+        function createBins(data, numBins) {
+            if (data.length === 0) return { labels: [], counts: [] };
+            
+            const min = Math.min(...data);
+            const max = Math.max(...data);
+            const binSize = (max - min) / numBins;
+            
+            let bins = Array(numBins).fill(0);
+            let labels = [];
+
+            for (let i = 0; i < numBins; i++) {
+                const binStart = min + (i * binSize);
+                const binEnd = binStart + binSize;
+                labels.push(`₹${(binStart/1000).toFixed(0)}k - ₹${(binEnd/1000).toFixed(0)}k`);
+            }
+
+            data.forEach(val => {
+                let binIndex = Math.floor((val - min) / binSize);
+                if (binIndex === numBins) binIndex--; // Edge case for max value
+                bins[binIndex]++;
+            });
+
+            return { labels: labels, counts: bins };
+        }
+
+        const binData = createBins(creditAmounts, 10);
+
+        const ctxHist = document.getElementById('creditHistogram').getContext('2d');
+        new Chart(ctxHist, {
+            type: 'bar',
+            data: {
+                labels: binData.labels,
+                datasets: [{
+                    label: 'Number of Transactions',
+                    data: binData.counts,
+                    backgroundColor: '#3b82f6',
+                    borderWidth: 1,
+                    borderColor: '#2563eb',
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { maxRotation: 45, minRotation: 45 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Frequency' }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

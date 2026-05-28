@@ -1,0 +1,35 @@
+{
+    "accuracy": 0.9195323805342829,
+    "precision": 0.0,
+    "recall": 0.0,
+    "confusion_matrix": [
+        [
+            56554,
+            0
+        ],
+        [
+            4949,
+            0
+        ]
+    ],
+    "features": [
+        "contract_type",
+        "credit",
+        "income",
+        "income_type",
+        "education",
+        "days_employed",
+        "age",
+        "occupation_type"
+    ],
+    "feature_importances": [
+        8.526332679034079,
+        23.882333225118746,
+        12.322040906276138,
+        5.59095602318324,
+        10.094963779291668,
+        17.658331225869848,
+        18.36576410280522,
+        3.5592780584210484
+    ]
+}
