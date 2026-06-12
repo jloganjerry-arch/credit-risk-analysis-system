@@ -1,35 +1,48 @@
 {
-    "accuracy": 0.9195323805342829,
+    "best_model": "CatBoost",
+    "accuracy": 0.9192722306228964,
     "precision": 0.0,
     "recall": 0.0,
+    "f1_score": 0.0,
+    "roc_auc": 0.6550447190968567,
     "confusion_matrix": [
         [
-            56554,
+            56538,
             0
         ],
         [
-            4949,
+            4965,
             0
         ]
     ],
     "features": [
-        "contract_type",
-        "credit",
-        "income",
-        "income_type",
-        "education",
-        "days_employed",
-        "age",
-        "occupation_type"
+        "NAME_CONTRACT_TYPE",
+        "DAYS_BIRTH",
+        "AMT_CREDIT",
+        "AMT_INCOME_TOTAL",
+        "NAME_INCOME_TYPE",
+        "NAME_EDUCATION_TYPE",
+        "OCCUPATION_TYPE",
+        "DAYS_EMPLOYED"
     ],
     "feature_importances": [
-        8.526332679034079,
-        23.882333225118746,
-        12.322040906276138,
-        5.59095602318324,
-        10.094963779291668,
-        17.658331225869848,
-        18.36576410280522,
-        3.5592780584210484
+        0.21302972089688976,
+        0.1819878756083838,
+        0.16921206473841677,
+        0.15418295732984044,
+        0.11042577577354934,
+        0.10605394452910284,
+        0.06950970180384376,
+        0.03368717580124547
+    ],
+    "features_sorted": [
+        "DAYS_BIRTH",
+        "DAYS_EMPLOYED",
+        "NAME_EDUCATION_TYPE",
+        "AMT_CREDIT",
+        "NAME_INCOME_TYPE",
+        "NAME_CONTRACT_TYPE",
+        "OCCUPATION_TYPE",
+        "AMT_INCOME_TOTAL"
     ]
 }

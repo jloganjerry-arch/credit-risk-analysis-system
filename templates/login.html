@@ -7,13 +7,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #0056ff;
-            --primary-light: #00a2ff;
-            --text-main: #2d3748;
-            --text-muted: #718096;
-            --bg-body: #f4f7fb;
-            --bg-card: #ffffff;
-            --border-color: #e2e8f0;
+            --primary: #3b82f6;
+            --primary-light: #60a5fa;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg-body: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.1);
         }
 
         * {
@@ -35,7 +36,7 @@
             padding: 2rem;
         }
 
-        /* Abstract Wave Background */
+        /* Abstract Dark Wave Background */
         .wave-bg {
             position: absolute;
             top: 0;
@@ -43,24 +44,37 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
-            clip-path: polygon(0 0, 100% 0, 100% 45%, 0 75%);
+            background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 40%),
+                        radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.1), transparent 40%),
+                        #0f172a;
         }
 
         .circle-decor {
             position: absolute;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            animation: float 6s ease-in-out infinite;
+            filter: blur(80px);
+            animation: float 10s ease-in-out infinite alternate;
         }
 
-        .circle-1 { width: 300px; height: 300px; top: -100px; right: -50px; }
-        .circle-2 { width: 150px; height: 150px; top: 20%; right: 20%; animation-delay: 2s; }
+        .circle-1 { 
+            width: 400px; 
+            height: 400px; 
+            top: -100px; 
+            right: -100px; 
+            background: rgba(59, 130, 246, 0.3);
+        }
+        .circle-2 { 
+            width: 300px; 
+            height: 300px; 
+            bottom: -50px; 
+            left: -50px; 
+            background: rgba(16, 185, 129, 0.2);
+            animation-delay: 2s; 
+        }
 
         @keyframes float {
-            0% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-            100% { transform: translateY(0); }
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-30px, 30px) scale(1.1); }
         }
 
         .container {
@@ -69,7 +83,10 @@
             padding: 3.5rem 3rem;
             width: 100%;
             max-width: 450px;
-            box-shadow: 0 15px 35px rgba(0, 86, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
             position: relative;
             z-index: 10;
@@ -98,7 +115,7 @@
         .header-text h1 {
             font-size: 2rem;
             font-weight: 800;
-            background: linear-gradient(to right, var(--text-main) 20%, var(--primary) 40%, var(--primary) 60%, var(--text-main) 80%);
+            background: linear-gradient(to right, #f8fafc 20%, var(--primary-light) 40%, var(--primary-light) 60%, #f8fafc 80%);
             background-size: 200% auto;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -122,11 +139,13 @@
         label {
             font-size: 0.85rem;
             font-weight: 600;
-            color: var(--text-main);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         input {
-            background: #f8fafc;
+            background: rgba(15, 23, 42, 0.6);
             border: 1px solid var(--border-color);
             border-radius: 10px;
             padding: 1rem 1.2rem;
@@ -138,12 +157,12 @@
         input:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(0, 86, 255, 0.1);
-            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+            background: rgba(15, 23, 42, 0.9);
         }
 
         input::placeholder {
-            color: #a0aec0;
+            color: #475569;
         }
 
         .error-message {
@@ -159,7 +178,7 @@
         }
 
         .btn-submit {
-            background: #0066ff;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             color: white;
             border: none;
             padding: 1rem 2rem;
@@ -169,13 +188,13 @@
             cursor: pointer;
             width: 100%;
             transition: all 0.3s ease;
-            box-shadow: 0 8px 20px rgba(0, 86, 255, 0.25);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
             margin-top: 0.5rem;
         }
 
         .btn-submit:hover {
             transform: translateY(-3px);
-            box-shadow: 0 12px 25px rgba(0, 86, 255, 0.35);
+            box-shadow: 0 12px 25px rgba(59, 130, 246, 0.4);
         }
 
         .footer-text {

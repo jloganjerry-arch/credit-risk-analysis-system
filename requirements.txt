@@ -4,3 +4,8 @@ pandas
 scikit-learn
 gunicorn
 joblib
+catboost
+xgboost
+shap
+matplotlibgoogle-generativeai
+python-dotenv

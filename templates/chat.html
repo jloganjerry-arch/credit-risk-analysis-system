@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant - Risk Analysis Scanner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #1e3a8a;
+            --primary-light: #60a5fa;
+            --success: #10b981;
+            --danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --bg-body: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --sidebar-bg: #0b1120;
+            --sidebar-hover: rgba(59, 130, 246, 0.15);
+            --chat-user-bg: rgba(59, 130, 246, 0.2);
+            --chat-ai-bg: rgba(30, 41, 59, 0.9);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 2.5rem 0;
+            flex-shrink: 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+            border-right: 1px solid var(--border-color);
+            z-index: 50;
+        }
+
+        .sidebar-logo {
+            padding: 0 2rem;
+            margin-bottom: 3.5rem;
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex: 1;
+            padding: 0 1rem;
+        }
+
+        .sidebar-item {
+            padding: 0.85rem 1.25rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .sidebar-item:hover {
+            background-color: var(--sidebar-hover);
+            color: white;
+            transform: translateX(5px);
+        }
+
+        .sidebar-item.active {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+            border-left: 4px solid var(--primary);
+            box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.05);
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            padding: 0 1.5rem;
+            margin-top: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .btn-exit {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.5rem 2rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            font-weight: 500;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn-exit:hover {
+            background-color: white;
+            color: var(--primary);
+            border-color: white;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            background: radial-gradient(circle at 50% -20%, #1e1b4b 0%, var(--bg-body) 70%);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2.5rem 3.5rem;
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through if needed */
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(96, 165, 250, 0.5), 0 0 20px rgba(96, 165, 250, 0.3);
+            position: relative;
+            animation: pulseGlow 2s ease-in-out infinite alternate;
+        }
+        
+        .header h1::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            top: 50%;
+            right: -15px;
+            transform: translateY(-50%);
+            box-shadow: 0 0 10px #10b981, 0 0 20px #10b981;
+            animation: pulseDot 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            from { text-shadow: 0 0 10px rgba(96, 165, 250, 0.4), 0 0 20px rgba(96, 165, 250, 0.2); }
+            to { text-shadow: 0 0 15px rgba(96, 165, 250, 0.8), 0 0 30px rgba(96, 165, 250, 0.5), 0 0 40px rgba(96, 165, 250, 0.3); }
+        }
+
+        @keyframes pulseDot {
+            from { opacity: 0.5; box-shadow: 0 0 5px #10b981; }
+            to { opacity: 1; box-shadow: 0 0 15px #10b981, 0 0 25px #10b981; }
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            padding-top: 7rem; /* Make room for absolute header */
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 0 15%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+            z-index: 1;
+            scroll-behavior: smooth;
+            padding-bottom: 2rem;
+        }
+
+        /* Custom Scrollbar */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .message-row {
+            display: flex;
+            width: 100%;
+            animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+
+        .message-row.user { justify-content: flex-end; }
+        .message-row.ai { justify-content: flex-start; }
+
+        .message-bubble {
+            max-width: 80%;
+            padding: 1.25rem 1.8rem;
+            border-radius: 24px;
+            line-height: 1.7;
+            font-size: 0.98rem;
+            position: relative;
+            letter-spacing: 0.3px;
+        }
+
+        .message-row.user .message-bubble {
+            background: linear-gradient(135deg, #6366f1, #d946ef);
+            color: #ffffff;
+            border-bottom-right-radius: 6px;
+            box-shadow: 0 10px 30px rgba(217, 70, 239, 0.25);
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+
+        .message-row.ai .message-bubble {
+            background: rgba(30, 41, 59, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-main);
+            border-bottom-left-radius: 6px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+        }
+
+        .ai-avatar {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #3b82f6, #06b6d4);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+            margin-top: auto;
+            margin-bottom: auto;
+            font-size: 1.2rem;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .chat-input-container {
+            margin: 1.5rem 15% 2rem 15%;
+            padding: 0.8rem 1rem 0.8rem 1.5rem;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-top: 1px solid rgba(255,255,255,0.2);
+            border-radius: 100px;
+            display: flex;
+            gap: 1rem;
+            z-index: 10;
+            align-items: center;
+            backdrop-filter: blur(24px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s;
+        }
+
+        .chat-input-container:focus-within {
+            transform: translateY(-2px);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(99, 102, 241, 0.5);
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 0.5rem;
+            background: transparent;
+            color: var(--text-main);
+            border: none;
+            outline: none;
+            font-size: 1.05rem;
+        }
+
+        .chat-input::placeholder {
+            color: rgba(255,255,255,0.4);
+        }
+
+        .chat-input:focus {
+            background: transparent;
+        }
+
+        .chat-submit {
+            background: #ffffff;
+            color: #0f172a;
+            border: none;
+            border-radius: 50px;
+            padding: 0.8rem 1.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            font-size: 0.95rem;
+        }
+
+        .chat-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .chat-submit:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading-dots::after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { color: rgba(0,0,0,0); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0);}
+            40% { color: var(--text-main); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0);}
+            60% { text-shadow: .25em 0 0 var(--text-main), .5em 0 0 rgba(0,0,0,0);}
+            80%, 100% { text-shadow: .25em 0 0 var(--text-main), .5em 0 0 var(--text-main);}
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-logo">Risk Analysis</div>
+        <div class="sidebar-menu">
+            <a href="/home" class="sidebar-item">Prediction Model</a>
+            <a href="/history" class="sidebar-item">History</a>
+            <a href="/analysis" class="sidebar-item">Data Analysis</a>
+            <a href="/chat" class="sidebar-item active">AI Assistant</a>
+        </div>
+        <div class="sidebar-footer">
+            <a href="/" class="btn-exit">Exit</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <header class="header">
+            <h1>AI Assistant</h1>
+        </header>
+
+        <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <div class="message-row ai">
+                    <div class="ai-avatar">✨</div>
+                    <div class="message-bubble">
+                        Hello! I am your specialized Credit Risk Analysis Assistant. You can ask me anything about credit risk models, SHAP explanations, or prediction results. How can I help you today?
+                    </div>
+                </div>
+            </div>
+            
+            <form class="chat-input-container" id="chat-form">
+                <input type="text" id="chat-input" class="chat-input" placeholder="Ask about risk scores, model features, or explanations..." required autocomplete="off">
+                <button type="submit" id="chat-submit" class="chat-submit">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Markdown Parser for styling outputs -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatSubmit = document.getElementById('chat-submit');
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            // Add user message to UI
+            appendMessage('user', message);
+            chatInput.value = '';
+            
+            // Add loading state
+            chatSubmit.disabled = true;
+            const loadingId = appendMessage('ai', '<span class="loading-dots">Analyzing</span>');
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+                
+                const data = await response.json();
+                
+                const rowDiv = document.getElementById(loadingId);
+                const msgDiv = rowDiv.querySelector('.stream-target');
+                
+                if (data.reply) {
+                    const parsedHTML = marked.parse(data.reply);
+                    msgDiv.innerHTML = `<div class="stream-content"></div>`;
+                    const contentDiv = msgDiv.querySelector('.stream-content');
+                    await streamText(contentDiv, parsedHTML);
+                } else {
+                    msgDiv.innerHTML = `Sorry, I encountered an error. Please try again.`;
+                }
+            } catch (error) {
+                const rowDiv = document.getElementById(loadingId);
+                if (rowDiv) {
+                    rowDiv.querySelector('.stream-target').innerHTML = `Network error. Could not connect to AI service.`;
+                }
+            } finally {
+                chatSubmit.disabled = false;
+                chatInput.focus();
+            }
+        });
+
+        function appendMessage(sender, content) {
+            const rowDiv = document.createElement('div');
+            rowDiv.className = `message-row ${sender}`;
+            const id = 'msg-' + Date.now();
+            rowDiv.id = id;
+            
+            let innerHTML = '';
+            if (sender === 'ai') {
+                innerHTML = `
+                    <div class="ai-avatar">✨</div>
+                    <div class="message-bubble stream-target">${content}</div>
+                `;
+            } else {
+                innerHTML = `<div class="message-bubble">${content}</div>`;
+            }
+            
+            rowDiv.innerHTML = innerHTML;
+            chatMessages.appendChild(rowDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return id;
+        }
+
+        // Flawless DOM-Walking Typewriter Effect
+        async function streamText(element, htmlContent) {
+            element.innerHTML = '';
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            
+            async function walkNode(node, targetNode) {
+                if (node.nodeType === 3) { // Text node
+                    const text = node.textContent;
+                    const textNode = document.createTextNode('');
+                    targetNode.appendChild(textNode);
+                    for (let i = 0; i < text.length; i++) {
+                        textNode.textContent += text[i];
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        await new Promise(r => setTimeout(r, 8)); // 8ms per char
+                    }
+                } else if (node.nodeType === 1) { // Element node
+                    const newEl = document.createElement(node.tagName);
+                    for (let attr of node.attributes) {
+                        newEl.setAttribute(attr.name, attr.value);
+                    }
+                    targetNode.appendChild(newEl);
+                    for (let child of node.childNodes) {
+                        await walkNode(child, newEl);
+                    }
+                }
+            }
+            
+            for (let child of tempDiv.childNodes) {
+                await walkNode(child, element);
+            }
+        }
+
+        // Check for Pending Analysis from index.html
+        document.addEventListener('DOMContentLoaded', async () => {
+            const pendingAnalysis = sessionStorage.getItem('pendingAiAnalysis');
+            if (pendingAnalysis) {
+                sessionStorage.removeItem('pendingAiAnalysis');
+                const data = JSON.parse(pendingAnalysis);
+                
+                // Formulate the user message
+                const userMsg = `Please analyze this transaction:\n\n**Risk Category**: ${data.risk_category}\n**Risk Score**: ${data.risk_score}%\n**Credit Amount**: ₹${data.credit}\n**Income**: ₹${data.income}\n**Age**: ${data.age}\n**Occupation**: ${data.occupation}`;
+                appendMessage('user', userMsg);
+                
+                // Prepare AI loading
+                const loadingId = appendMessage('ai', '<div class="loading-spinner"></div><span style="color:var(--text-muted); font-size: 0.9rem; margin-left:10px;">Analyzing Transaction Details...</span>');
+                
+                try {
+                    // Call the highly structured /api/analyze endpoint
+                    const response = await fetch('/api/analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    const resData = await response.json();
+                    const rowDiv = document.getElementById(loadingId);
+                    const msgDiv = rowDiv.querySelector('.stream-target');
+                    
+                    if (resData.analysis) {
+                        const parsedHTML = marked.parse(resData.analysis);
+                        msgDiv.innerHTML = `<div class="stream-content"></div>`;
+                        const contentDiv = msgDiv.querySelector('.stream-content');
+                        await streamText(contentDiv, parsedHTML);
+                    } else {
+                        msgDiv.innerHTML = `Sorry, I encountered an error. Please try again.`;
+                    }
+                } catch (error) {
+                    const rowDiv = document.getElementById(loadingId);
+                    if (rowDiv) {
+                        rowDiv.querySelector('.stream-target').innerHTML = `Network error. Could not connect to AI service.`;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
