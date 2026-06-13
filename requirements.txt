@@ -7,5 +7,6 @@ joblib
 catboost
 xgboost
 shap
-matplotlibgoogle-generativeai
+matplotlib
+groq
 python-dotenv
