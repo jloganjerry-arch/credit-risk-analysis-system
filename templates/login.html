@@ -203,6 +203,35 @@
             font-size: 0.85rem;
             color: var(--text-muted);
         }
+
+        /* Currency Particles */
+        .currency-particle {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.15);
+            font-size: 2rem;
+            font-weight: 700;
+            user-select: none;
+            pointer-events: none;
+            z-index: 1;
+            animation: floatUp linear forwards;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(100vh) rotate(0deg) scale(0.8);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-20vh) rotate(360deg) scale(1.2);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -242,5 +271,42 @@
         </div>
     </div>
 
+    <script>
+        function createParticle() {
+            const symbols = ['$', '€', '£', '¥', '₹', '₿', '¢'];
+            const particle = document.createElement('div');
+            
+            particle.classList.add('currency-particle');
+            particle.innerText = symbols[Math.floor(Math.random() * symbols.length)];
+            
+            // Randomize position, size, and animation duration
+            const size = Math.random() * 2 + 1; // 1rem to 3rem
+            particle.style.fontSize = `${size}rem`;
+            particle.style.left = `${Math.random() * 100}vw`;
+            
+            // Random duration between 10s and 20s
+            const duration = Math.random() * 10 + 10;
+            particle.style.animationDuration = `${duration}s`;
+            
+            // Random color tint
+            const colors = ['rgba(59, 130, 246, 0.15)', 'rgba(16, 185, 129, 0.15)', 'rgba(255, 255, 255, 0.1)'];
+            particle.style.color = colors[Math.floor(Math.random() * colors.length)];
+
+            document.body.appendChild(particle);
+
+            // Remove particle after animation
+            setTimeout(() => {
+                particle.remove();
+            }, duration * 1000);
+        }
+
+        // Create particles periodically
+        setInterval(createParticle, 800);
+        
+        // Initial burst
+        for(let i=0; i<15; i++) {
+            setTimeout(createParticle, Math.random() * 2000);
+        }
+    </script>
 </body>
 </html>

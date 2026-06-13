@@ -270,6 +270,23 @@
             color: var(--text-main);
         }
 
+        .search-input {
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            outline: none;
+            background: rgba(30, 41, 59, 0.8);
+            font-size: 0.9rem;
+            color: var(--text-main);
+            width: 250px;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
         select {
             padding: 0.6rem 1rem;
             border-radius: 8px;
@@ -528,11 +545,14 @@
         <div class="table-section">
             <div class="table-controls">
                 <h2>Transaction Records</h2>
-                <select id="riskFilter" onchange="filterTable()">
-                    <option value="all">All Stages</option>
-                    <option value="high">High Risk Only</option>
-                    <option value="low">Low Risk Only</option>
-                </select>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search transactions..." onkeyup="filterTable()">
+                    <select id="riskFilter" onchange="filterTable()">
+                        <option value="all">All Stages</option>
+                        <option value="high">High Risk Only</option>
+                        <option value="low">Low Risk Only</option>
+                    </select>
+                </div>
             </div>
             
             <div class="table-scroll-area">
@@ -645,6 +665,7 @@
 
         function filterTable() {
             const filterValue = document.getElementById('riskFilter').value;
+            const searchValue = document.getElementById('searchInput') ? document.getElementById('searchInput').value.toLowerCase() : '';
             const table = document.getElementById('ledgerTable');
             const tbody = table.getElementsByTagName('tbody')[0];
             const rows = tbody.getElementsByTagName('tr');
@@ -657,23 +678,21 @@
                 if (rows[i].getElementsByClassName('empty-state').length > 0) continue;
 
                 const statusCell = rows[i].getElementsByTagName('td')[6];
+                const rowText = rows[i].innerText.toLowerCase();
+                
                 if (statusCell) {
                     const textValue = statusCell.textContent || statusCell.innerText;
                     const isHighRisk = textValue.includes('High Risk');
-                    
-                    if (isHighRisk) {
-                        highRisk++;
-                    } else {
-                        lowRisk++;
-                    }
-                    total++;
+                    const matchesSearch = rowText.includes(searchValue);
 
-                    if (filterValue === 'all') {
+                    if (matchesSearch && (filterValue === 'all' || (filterValue === 'high' && isHighRisk) || (filterValue === 'low' && !isHighRisk))) {
                         rows[i].style.display = '';
-                    } else if (filterValue === 'high' && isHighRisk) {
-                        rows[i].style.display = '';
-                    } else if (filterValue === 'low' && !isHighRisk) {
-                        rows[i].style.display = '';
+                        if (isHighRisk) {
+                            highRisk++;
+                        } else {
+                            lowRisk++;
+                        }
+                        total++;
                     } else {
                         rows[i].style.display = 'none';
                     }

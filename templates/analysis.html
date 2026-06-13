@@ -325,14 +325,6 @@
 
         <div class="scrollable-content">
             
-            <div class="summary-card-single">
-                <div class="card-title">Model Accuracy</div>
-                {% if metrics %}
-                <div class="card-value" style="color: var(--success);">{{ "{:.1f}".format(metrics.accuracy * 100) }}%</div>
-                {% else %}
-                <div class="card-value" style="color: var(--success);">91%</div>
-                {% endif %}
-            </div>
 
             <div class="chart-grid">
                 
