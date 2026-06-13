@@ -1,35 +1,49 @@
 {
-    "accuracy": 0.9195323805342829,
-    "precision": 0.0,
-    "recall": 0.0,
+    "best_model": "CatBoost",
+    "accuracy": 0.619140529730257,
+    "precision": 0.12206707342041685,
+    "recall": 0.6004028197381671,
+    "f1_score": 0.20288572789763834,
+    "roc_auc": 0.6520452926757421,
     "confusion_matrix": [
         [
-            56554,
-            0
+            35098,
+            21440
         ],
         [
-            4949,
-            0
+            1984,
+            2981
         ]
     ],
     "features": [
-        "contract_type",
-        "credit",
-        "income",
-        "income_type",
-        "education",
-        "days_employed",
-        "age",
-        "occupation_type"
+        "NAME_CONTRACT_TYPE",
+        "DAYS_BIRTH",
+        "AMT_CREDIT",
+        "AMT_INCOME_TOTAL",
+        "NAME_INCOME_TYPE",
+        "NAME_EDUCATION_TYPE",
+        "OCCUPATION_TYPE",
+        "DAYS_EMPLOYED"
     ],
+    "requires_scaling": false,
     "feature_importances": [
-        8.526332679034079,
-        23.882333225118746,
-        12.322040906276138,
-        5.59095602318324,
-        10.094963779291668,
-        17.658331225869848,
-        18.36576410280522,
-        3.5592780584210484
+        0.22097937808938342,
+        0.1763919998389033,
+        0.1649053509945992,
+        0.14885576117809887,
+        0.11355904548018497,
+        0.09747738388336347,
+        0.05049259266881654,
+        0.022973799631591484
+    ],
+    "features_sorted": [
+        "DAYS_BIRTH",
+        "DAYS_EMPLOYED",
+        "NAME_EDUCATION_TYPE",
+        "AMT_CREDIT",
+        "NAME_INCOME_TYPE",
+        "NAME_CONTRACT_TYPE",
+        "OCCUPATION_TYPE",
+        "AMT_INCOME_TOTAL"
     ]
 }
