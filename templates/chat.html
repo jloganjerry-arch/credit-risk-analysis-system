@@ -425,19 +425,50 @@
                     msgDiv.innerHTML = `<div class="stream-content"></div>`;
                     const contentDiv = msgDiv.querySelector('.stream-content');
                     await streamText(contentDiv, parsedHTML);
+                    saveChatHistory();
                 } else {
-                    msgDiv.innerHTML = `Sorry, I encountered an error. Please try again.`;
+                    msgDiv.innerHTML = `Sorry, I encountered an error: ${data.error || 'Please try again.'}`;
+                    saveChatHistory();
                 }
             } catch (error) {
                 const rowDiv = document.getElementById(loadingId);
                 if (rowDiv) {
                     rowDiv.querySelector('.stream-target').innerHTML = `Network error. Could not connect to AI service.`;
+                    saveChatHistory();
                 }
             } finally {
                 chatSubmit.disabled = false;
                 chatInput.focus();
             }
         });
+
+        // Chat History Management
+        function saveChatHistory() {
+            // Save current timestamp + chat HTML
+            const chatData = {
+                html: chatMessages.innerHTML,
+                timestamp: new Date().getTime()
+            };
+            sessionStorage.setItem('tempChatHistory', JSON.stringify(chatData));
+        }
+
+        function loadChatHistory() {
+            const historyStr = sessionStorage.getItem('tempChatHistory');
+            if (historyStr) {
+                try {
+                    const chatData = JSON.parse(historyStr);
+                    // 2-hour expiration for temporary chat (2 * 60 * 60 * 1000)
+                    if (new Date().getTime() - chatData.timestamp < 7200000) {
+                        chatMessages.innerHTML = chatData.html;
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        return true;
+                    } else {
+                        sessionStorage.removeItem('tempChatHistory');
+                    }
+                } catch(e) {}
+            }
+            return false;
+        }
 
         function appendMessage(sender, content) {
             const rowDiv = document.createElement('div');
@@ -525,15 +556,21 @@
                         msgDiv.innerHTML = `<div class="stream-content"></div>`;
                         const contentDiv = msgDiv.querySelector('.stream-content');
                         await streamText(contentDiv, parsedHTML);
+                        saveChatHistory();
                     } else {
-                        msgDiv.innerHTML = `Sorry, I encountered an error. Please try again.`;
+                        msgDiv.innerHTML = `Sorry, I encountered an error: ${resData.error || 'Please try again.'}`;
+                        saveChatHistory();
                     }
                 } catch (error) {
                     const rowDiv = document.getElementById(loadingId);
                     if (rowDiv) {
                         rowDiv.querySelector('.stream-target').innerHTML = `Network error. Could not connect to AI service.`;
+                        saveChatHistory();
                     }
                 }
+            } else {
+                // No pending analysis, just load history if exists
+                loadChatHistory();
             }
         });
     </script>
