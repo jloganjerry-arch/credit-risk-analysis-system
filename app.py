@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, make_response
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, make_response, flash
 import pickle
 import numpy as np
 import pandas as pd
@@ -13,6 +13,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 import groq
 from groq import Groq
+import bcrypt
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -36,6 +38,31 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'credit-risk-secret-key-2025')
 
 # =========================================
+# FLASK-LOGIN SETUP
+# =========================================
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access this page.'
+
+class User(UserMixin):
+    def __init__(self, id, username, role):
+        self.id = id
+        self.username = username
+        self.role = role
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = sqlite3.connect('history.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, username, role FROM users WHERE id=?', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return User(row[0], row[1], row[2])
+    return None
+
+# =========================================
 # CREATE DATABASE
 # =========================================
 conn = sqlite3.connect('history.db', check_same_thread=False)
@@ -52,11 +79,27 @@ cursor.execute('''
         risk_reason TEXT
     )
 ''')
+# Users table for multi-user auth
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'analyst'
+    )
+''')
 # Alter table to add risk_reason if it doesn't exist from older versions
 try:
     cursor.execute('ALTER TABLE predictions ADD COLUMN risk_reason TEXT')
 except:
     pass
+
+# Seed default admin user if no users exist
+cursor.execute('SELECT COUNT(*) FROM users')
+if cursor.fetchone()[0] == 0:
+    hashed = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    cursor.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+                   ('admin', hashed, 'admin'))
 conn.commit()
 
 # =========================================
@@ -86,6 +129,7 @@ features = [
 # AI ASSISTANT CHATBOT PAGE
 # =========================================
 @app.route('/chat')
+@login_required
 def chat():
     return render_template('chat.html')
 
@@ -264,28 +308,71 @@ Maintain a highly professional, banking-style tone.
 # =========================================
 @app.route('/')
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
     return render_template('login.html')
 
 @app.route('/login', methods=['POST'])
 def validate_login():
     username = request.form['username']
     password = request.form['password']
-    if username == "admin" and password == "1234":
+    conn = sqlite3.connect('history.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, username, password_hash, role FROM users WHERE username=?', (username,))
+    row = cursor.fetchone()
+    conn.close()
+    if row and bcrypt.checkpw(password.encode('utf-8'), row[2].encode('utf-8')):
+        user = User(row[0], row[1], row[3])
+        login_user(user)
         return redirect(url_for('home'))
-    else:
-        return render_template('login.html', error="Invalid Username or Password")
+    return render_template('login.html', error='Invalid username or password.')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# =========================================
+# REGISTER PAGE (Admin Only)
+# =========================================
+@app.route('/register', methods=['GET', 'POST'])
+@login_required
+def register():
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password']
+        role = request.form['role']
+        if not username or not password:
+            return render_template('register.html', error='All fields are required.')
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        try:
+            conn = sqlite3.connect('history.db')
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+                           (username, hashed, role))
+            conn.commit()
+            conn.close()
+            return render_template('register.html', success=f'User "{username}" created successfully!')
+        except sqlite3.IntegrityError:
+            return render_template('register.html', error=f'Username "{username}" already exists.')
+    return render_template('register.html')
 
 # =========================================
 # HOME PAGE
 # =========================================
 @app.route('/home')
+@login_required
 def home():
-    return render_template('index.html')
+    return render_template('index.html', username=current_user.username, role=current_user.role)
 
 # =========================================
 # PREDICTION ROUTE
 # =========================================
 @app.route('/predict', methods=['POST'])
+@login_required
 def predict():
     if model is None:
         return render_template('index.html', prediction_text="Model not trained yet. Please run training script.")
@@ -470,19 +557,23 @@ def predict():
 # HISTORY PAGE
 # =========================================
 @app.route('/history')
+@login_required
 def history():
     conn = sqlite3.connect('history.db')
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM predictions ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
-    return render_template('history.html', predictions=rows)
+    return render_template('history.html', predictions=rows, username=current_user.username, role=current_user.role)
 
 # =========================================
 # ANALYSIS PAGE
 # =========================================
 @app.route('/analysis')
+@login_required
 def analysis():
+    if current_user.role not in ['admin', 'manager']:
+        return redirect(url_for('home'))
     conn = sqlite3.connect('history.db')
     cursor = conn.cursor()
     cursor.execute("SELECT result, COUNT(*) FROM predictions GROUP BY result")

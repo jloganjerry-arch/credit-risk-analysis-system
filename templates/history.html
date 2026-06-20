@@ -528,10 +528,17 @@
         <div class="sidebar-menu">
             <a href="/home" class="sidebar-item">Prediction Model</a>
             <a href="/history" class="sidebar-item active">History</a>
+            {% if role in ['admin', 'manager'] %}
             <a href="/analysis" class="sidebar-item">Data Analysis</a>
+            {% endif %}
+            <a href="/chat" class="sidebar-item">AI Assistant</a>
+            {% if role == 'admin' %}
+            <a href="/register" class="sidebar-item">Manage Users</a>
+            {% endif %}
         </div>
-        <div class="sidebar-footer">
-            <a href="/" class="btn-exit">Exit</a>
+        <div class="sidebar-footer" style="flex-direction: column; gap: 0.8rem;">
+            <div style="text-align:center; font-size:0.8rem; color: var(--text-muted);">👤 {{ username }} <span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:0.15rem 0.5rem; border-radius:4px; font-size:0.7rem; margin-left:4px;">{{ role }}</span></div>
+            <a href="/logout" class="btn-exit">Logout</a>
         </div>
     </div>
 

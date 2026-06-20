@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register User - Risk Analysis</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg-body: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.85);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --sidebar-bg: #0b1120;
+            --sidebar-hover: rgba(59, 130, 246, 0.15);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+        body { background-color: var(--bg-body); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+
+        .sidebar {
+            width: 260px; background-color: var(--sidebar-bg); display: flex; flex-direction: column;
+            padding: 2.5rem 0; flex-shrink: 0; box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+            border-right: 1px solid var(--border-color); z-index: 50;
+        }
+        .sidebar-logo { padding: 0 2rem; margin-bottom: 3.5rem; font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: 1px; text-transform: uppercase; }
+        .sidebar-menu { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; padding: 0 1rem; }
+        .sidebar-item { padding: 0.85rem 1.25rem; color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: all 0.3s ease; border-radius: 8px; display: flex; align-items: center; }
+        .sidebar-item:hover { background-color: var(--sidebar-hover); color: white; transform: translateX(5px); }
+        .sidebar-item.active { background-color: rgba(59,130,246,0.1); color: var(--primary); border-left: 4px solid var(--primary); font-weight: 600; }
+        .sidebar-footer { padding: 0 1.5rem; margin-top: auto; display: flex; justify-content: center; }
+        .btn-exit { color: rgba(255,255,255,0.9); text-decoration: none; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 2rem; border-radius: 8px; transition: all 0.2s; font-size: 0.9rem; font-weight: 500; width: 100%; text-align: center; }
+        .btn-exit:hover { background-color: white; color: var(--primary); }
+
+        .main-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem; background: radial-gradient(circle at 50% -20%, #1e1b4b 0%, var(--bg-body) 70%); overflow-y: auto; }
+
+        .register-card {
+            background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px;
+            padding: 2.5rem; width: 100%; max-width: 480px; backdrop-filter: blur(16px);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+        .register-card h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 0.4rem; }
+        .register-card p { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 2rem; }
+
+        .input-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.2rem; }
+        .input-group label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        .input-group input, .input-group select {
+            background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); border-radius: 8px;
+            padding: 0.85rem 1rem; color: var(--text-main); font-size: 0.95rem; transition: all 0.3s ease;
+            appearance: none; -webkit-appearance: none;
+        }
+        .input-group input:focus, .input-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+
+        .btn-submit {
+            width: 100%; padding: 1rem; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white;
+            border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; margin-top: 0.5rem;
+        }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(59,130,246,0.4); }
+
+        .alert { padding: 0.9rem 1.2rem; border-radius: 10px; font-size: 0.9rem; margin-bottom: 1.2rem; font-weight: 500; }
+        .alert-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+        .alert-success { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+
+        .role-info { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-logo">Risk Analysis</div>
+        <div class="sidebar-menu">
+            <a href="/home" class="sidebar-item">Prediction Model</a>
+            <a href="/history" class="sidebar-item">History</a>
+            <a href="/analysis" class="sidebar-item">Data Analysis</a>
+            <a href="/register" class="sidebar-item active">Manage Users</a>
+        </div>
+        <div class="sidebar-footer">
+            <a href="/logout" class="btn-exit">Logout</a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="register-card">
+            <h1>➕ Create New User</h1>
+            <p>Admin panel — add team members with specific roles.</p>
+
+            {% if error %}
+            <div class="alert alert-error">⚠️ {{ error }}</div>
+            {% endif %}
+            {% if success %}
+            <div class="alert alert-success">✅ {{ success }}</div>
+            {% endif %}
+
+            <form method="POST" action="/register">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" name="username" id="username" placeholder="e.g. john_analyst" required autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" name="password" id="password" placeholder="Min. 6 characters" required>
+                </div>
+                <div class="input-group">
+                    <label for="role">Role</label>
+                    <select name="role" id="role" required>
+                        <option value="analyst">Analyst — Can predict and view history</option>
+                        <option value="manager">Manager — Can view Data Analysis too</option>
+                        <option value="admin">Admin — Full access + user management</option>
+                    </select>
+                    <div class="role-info">
+                        Analyst: Prediction + History | Manager: + Data Analysis | Admin: Full access
+                    </div>
+                </div>
+                <button type="submit" class="btn-submit">Create User Account</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
