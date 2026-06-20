@@ -21,6 +21,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -548,10 +550,11 @@ def predict():
         INSERT INTO predictions (contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (str(raw_data['NAME_CONTRACT_TYPE']), float(credit), float(age), risk_category, float(risk_score), str(raw_data['OCCUPATION_TYPE']), risk_reason_html))
+    tx_id = cursor.lastrowid
     conn.commit()
     conn.close()
 
-    return render_template('index.html', prediction_text=risk_category, risk_score=risk_score, risk_reason=risk_reason_html, show_results=True)
+    return render_template('index.html', prediction_text=risk_category, risk_score=risk_score, risk_reason=risk_reason_html, show_results=True, transaction_id=tx_id)
 
 # =========================================
 # HISTORY PAGE
@@ -738,6 +741,173 @@ Use formal banking language. Do NOT use markdown or asterisks."""
     response = make_response(buffer.getvalue())
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = f'attachment; filename=risk_report_{tx_id}.pdf'
+    return response
+
+# =========================================
+# BATCH PREDICT (CSV Upload)
+# =========================================
+@app.route('/batch_predict', methods=['GET', 'POST'])
+@login_required
+def batch_predict():
+    if request.method == 'GET':
+        return render_template('batch_results.html',
+                               username=current_user.username, role=current_user.role,
+                               results=None)
+    if model is None:
+        return render_template('batch_results.html', error='Model not loaded.',
+                               username=current_user.username, role=current_user.role, results=None)
+    if 'csv_file' not in request.files or request.files['csv_file'].filename == '':
+        return render_template('batch_results.html', error='No file selected.',
+                               username=current_user.username, role=current_user.role, results=None)
+
+    file = request.files['csv_file']
+    try:
+        df = pd.read_csv(file)
+    except Exception as e:
+        return render_template('batch_results.html', error=f'Could not read CSV: {e}',
+                               username=current_user.username, role=current_user.role, results=None)
+
+    # Expected columns mapping — flexible header names
+    col_map = {
+        'contract_type': 'NAME_CONTRACT_TYPE',
+        'age': 'DAYS_BIRTH',
+        'credit': 'AMT_CREDIT',
+        'income': 'AMT_INCOME_TOTAL',
+        'income_type': 'NAME_INCOME_TYPE',
+        'education': 'NAME_EDUCATION_TYPE',
+        'occupation_type': 'OCCUPATION_TYPE',
+        'days_employed': 'DAYS_EMPLOYED'
+    }
+    df.columns = [c.strip().lower().replace(' ', '_') for c in df.columns]
+    results = []
+    db_conn = sqlite3.connect('history.db')
+    db_cursor = db_conn.cursor()
+
+    for idx, row in df.iterrows():
+        try:
+            raw_data = {
+                'NAME_CONTRACT_TYPE': str(row.get('contract_type', 'Cash loans')),
+                'DAYS_BIRTH': float(row.get('age', 30)) * 365,
+                'AMT_CREDIT': float(row.get('credit', 300000)),
+                'AMT_INCOME_TOTAL': float(row.get('income', 150000)),
+                'NAME_INCOME_TYPE': str(row.get('income_type', 'Working')),
+                'NAME_EDUCATION_TYPE': str(row.get('education', 'Higher education')),
+                'OCCUPATION_TYPE': str(row.get('occupation_type', 'Managers')),
+                'DAYS_EMPLOYED': float(row.get('days_employed', 365))
+            }
+            age = float(row.get('age', 30))
+            credit = raw_data['AMT_CREDIT']
+            income = raw_data['AMT_INCOME_TOTAL']
+            days_employed = raw_data['DAYS_EMPLOYED']
+
+            input_df = pd.DataFrame([raw_data])
+            input_df_imputed = pd.DataFrame(imputer.transform(input_df), columns=features)
+            input_df_imputed['DAYS_BIRTH'] = abs(input_df_imputed['DAYS_BIRTH'].astype(float)) / 365
+            input_df_imputed['DAYS_EMPLOYED'] = abs(input_df_imputed['DAYS_EMPLOYED'].astype(float))
+            for col in ['NAME_CONTRACT_TYPE', 'NAME_INCOME_TYPE', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE']:
+                val = str(input_df_imputed[col].iloc[0])
+                input_df_imputed[col] = label_encoders[col].transform([val])[0] if val in label_encoders[col].classes_ else 0
+            for col in input_df_imputed.columns:
+                input_df_imputed[col] = input_df_imputed[col].astype(float)
+
+            proba = model.predict_proba(input_df_imputed)[0][1] if hasattr(model, 'predict_proba') else 0.5
+            risk_score = round(proba * 100, 2)
+
+            # Rule overrides
+            if age < 25 and income < 30000 and credit > 250000: risk_score = max(risk_score, 98.0)
+            elif days_employed < 180 and credit > 200000: risk_score = max(risk_score, 95.0)
+            elif income > 0 and (credit / income) > 10: risk_score = max(risk_score, 96.0)
+
+            risk_category = 'High Risk' if risk_score >= 70 else ('Medium Risk' if risk_score >= 40 else 'Low Risk')
+
+            db_cursor.execute("""
+                INSERT INTO predictions (contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (raw_data['NAME_CONTRACT_TYPE'], credit, age, risk_category, risk_score,
+                  raw_data['OCCUPATION_TYPE'], 'Batch prediction'))
+
+            results.append({
+                'row': idx + 1,
+                'contract_type': raw_data['NAME_CONTRACT_TYPE'],
+                'age': age,
+                'credit': credit,
+                'income': income,
+                'occupation': raw_data['OCCUPATION_TYPE'],
+                'risk_score': risk_score,
+                'risk_category': risk_category
+            })
+        except Exception as e:
+            results.append({'row': idx + 1, 'error': str(e)})
+
+    db_conn.commit()
+    db_conn.close()
+    return render_template('batch_results.html', results=results,
+                           username=current_user.username, role=current_user.role,
+                           total=len(results),
+                           high=sum(1 for r in results if r.get('risk_category') == 'High Risk'),
+                           medium=sum(1 for r in results if r.get('risk_category') == 'Medium Risk'),
+                           low=sum(1 for r in results if r.get('risk_category') == 'Low Risk'))
+
+# =========================================
+# EXPORT EXCEL
+# =========================================
+@app.route('/export_excel')
+@login_required
+def export_excel():
+    conn = sqlite3.connect('history.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM predictions ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Transaction History'
+
+    # Styles
+    header_font  = Font(bold=True, color='FFFFFF', size=11)
+    header_fill  = PatternFill('solid', fgColor='1E3A8A')
+    high_fill    = PatternFill('solid', fgColor='FEE2E2')
+    medium_fill  = PatternFill('solid', fgColor='FEF3C7')
+    low_fill     = PatternFill('solid', fgColor='D1FAE5')
+    center_align = Alignment(horizontal='center', vertical='center')
+    thin_border  = Border(
+        left=Side(style='thin', color='E2E8F0'),
+        right=Side(style='thin', color='E2E8F0'),
+        top=Side(style='thin', color='E2E8F0'),
+        bottom=Side(style='thin', color='E2E8F0')
+    )
+
+    headers = ['ID', 'Contract Type', 'Credit Amount (Rs)', 'Age', 'Risk Category', 'Risk Score (%)', 'Occupation']
+    ws.append(headers)
+    for col_num, _ in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+        cell.border = thin_border
+
+    for row in rows:
+        risk_cat = str(row[4]) if row[4] else ''
+        fill = high_fill if 'High' in risk_cat else (medium_fill if 'Medium' in risk_cat else low_fill)
+        ws.append([row[0], row[1], row[2], row[3], row[4], row[5], row[6]])
+        for col_num in range(1, 8):
+            cell = ws.cell(row=ws.max_row, column=col_num)
+            cell.fill = fill
+            cell.alignment = center_align
+            cell.border = thin_border
+
+    # Auto-fit columns
+    col_widths = [6, 18, 20, 8, 16, 15, 16]
+    for i, width in enumerate(col_widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = 'attachment; filename=transaction_history.xlsx'
     return response
 
 # =========================================
