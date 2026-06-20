@@ -388,6 +388,25 @@
             border-color: var(--primary);
         }
 
+        .btn-pdf {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-pdf:hover {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+
         /* Modal Styles */
         .modal-overlay {
             position: fixed;
@@ -593,10 +612,13 @@
                             </td>
                             <td style="font-size: 0.85rem;">
                                 {% if row|length > 7 and row[7] %}
-                                    <button class="btn-view-reason" 
-                                        data-row-json="{{ {'risk_category': row[4], 'risk_score': row[5], 'contract_type': row[1], 'credit': row[2], 'age': row[3], 'occupation': row[6]} | tojson | forceescape }}"
-                                        onclick="openReasonModal(this.nextElementSibling.innerHTML, this.dataset.rowJson)">View Analysis</button>
-                                    <div style="display: none;">{{ row[7] | safe }}</div>
+                                    <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                                        <button class="btn-view-reason" 
+                                            data-row-json="{{ {'risk_category': row[4], 'risk_score': row[5], 'contract_type': row[1], 'credit': row[2], 'age': row[3], 'occupation': row[6]} | tojson | forceescape }}"
+                                            onclick="openReasonModal(this.nextElementSibling.innerHTML, this.dataset.rowJson)">View Analysis</button>
+                                        <div style="display: none;">{{ row[7] | safe }}</div>
+                                        <a class="btn-pdf" href="/export_pdf/{{ row[0] }}" target="_blank">📄 PDF</a>
+                                    </div>
                                 {% else %}
                                     -
                                 {% endif %}

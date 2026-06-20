@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, make_response
 import pickle
 import numpy as np
 import pandas as pd
@@ -8,9 +8,17 @@ import shap
 import warnings
 import matplotlib
 import os
+import io
+from datetime import datetime
 from dotenv import load_dotenv
 import groq
 from groq import Groq
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -498,6 +506,148 @@ def analysis():
         metrics = None
 
     return render_template('analysis.html', high_risk=high_risk_count, low_risk=low_risk_count, credit_amounts=credit_amounts, metrics=metrics)
+
+# =========================================
+# EXPORT PDF REPORT
+# =========================================
+@app.route('/export_pdf/<int:transaction_id>')
+def export_pdf(transaction_id):
+    # Fetch transaction from DB
+    conn = sqlite3.connect('history.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM predictions WHERE id=?", (transaction_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return "Transaction not found", 404
+
+    tx_id, contract_type, credit_amount, age, risk_category, risk_score, occupation_type, risk_reason = row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7] if len(row) > 7 else ''
+
+    # Generate AI narrative via Groq
+    ai_narrative = "AI analysis not available (API key not configured)."
+    try:
+        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        prompt = f"""You are a senior credit risk analyst writing an official bank report.
+Write a concise 3-paragraph professional risk assessment for this loan application:
+- Transaction ID: #{tx_id}
+- Contract Type: {contract_type}
+- Credit Amount: Rs {credit_amount:,.2f}
+- Applicant Age: {age} years
+- Occupation: {occupation_type}
+- Risk Score: {risk_score}%
+- Risk Category: {risk_category}
+
+Paragraph 1: Executive Summary (2-3 sentences summarizing the decision)
+Paragraph 2: Key Risk Factors (what drove this risk score)
+Paragraph 3: Recommendation (specific actionable advice for loan officer)
+
+Use formal banking language. Do NOT use markdown or asterisks."""
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        ai_narrative = response.choices[0].message.content
+    except Exception as e:
+        ai_narrative = f"AI narrative unavailable: {str(e)}"
+
+    # Build PDF in memory
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            rightMargin=2*cm, leftMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+    story = []
+
+    # Color scheme
+    primary_color = colors.HexColor('#1e3a8a')
+    danger_color  = colors.HexColor('#ef4444')
+    success_color = colors.HexColor('#10b981')
+    warning_color = colors.HexColor('#f59e0b')
+    risk_color = danger_color if 'High' in str(risk_category) else (warning_color if 'Medium' in str(risk_category) else success_color)
+
+    # Title Header
+    title_style = ParagraphStyle('Title', parent=styles['Title'],
+        fontSize=20, textColor=primary_color, spaceAfter=4, alignment=TA_CENTER)
+    subtitle_style = ParagraphStyle('Sub', parent=styles['Normal'],
+        fontSize=10, textColor=colors.HexColor('#64748b'), alignment=TA_CENTER, spaceAfter=2)
+    story.append(Paragraph("CREDIT RISK ASSESSMENT REPORT", title_style))
+    story.append(Paragraph("Transaction Risk Analyzer — Powered by AI", subtitle_style))
+    story.append(Paragraph(f"Generated: {datetime.now().strftime('%d %B %Y, %I:%M %p')}", subtitle_style))
+    story.append(Spacer(1, 0.4*cm))
+    story.append(HRFlowable(width='100%', thickness=2, color=primary_color))
+    story.append(Spacer(1, 0.4*cm))
+
+    # Risk Score Banner
+    score_label = str(risk_category).upper() if risk_category else 'UNKNOWN'
+    score_val   = f"{float(risk_score):.1f}%" if risk_score is not None else 'N/A'
+    banner_data = [[f'RISK CATEGORY: {score_label}', f'RISK SCORE: {score_val}']]
+    banner_table = Table(banner_data, colWidths=[9*cm, 8*cm])
+    banner_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), risk_color),
+        ('TEXTCOLOR',  (0,0), (-1,-1), colors.white),
+        ('FONTNAME',   (0,0), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE',   (0,0), (-1,-1), 13),
+        ('ALIGN',      (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0,0), (-1,-1), [risk_color]),
+        ('TOPPADDING',    (0,0), (-1,-1), 12),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+        ('ROUNDEDCORNERS', [6]),
+    ]))
+    story.append(banner_table)
+    story.append(Spacer(1, 0.5*cm))
+
+    # Applicant Details Table
+    section_style = ParagraphStyle('Section', parent=styles['Heading2'],
+        fontSize=12, textColor=primary_color, spaceBefore=8, spaceAfter=4)
+    story.append(Paragraph("Applicant Details", section_style))
+    details_data = [
+        ['Field', 'Value'],
+        ['Transaction ID', f'#{tx_id}'],
+        ['Contract Type', str(contract_type).title()],
+        ['Credit Amount', f'Rs {float(credit_amount):,.2f}'],
+        ['Applicant Age', f'{float(age):.0f} years'],
+        ['Occupation', str(occupation_type).title()],
+    ]
+    details_table = Table(details_data, colWidths=[6*cm, 11*cm])
+    details_table.setStyle(TableStyle([
+        ('BACKGROUND',  (0,0), (-1,0), primary_color),
+        ('TEXTCOLOR',   (0,0), (-1,0), colors.white),
+        ('FONTNAME',    (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE',    (0,0), (-1,-1), 10),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor('#f8fafc'), colors.white]),
+        ('GRID',        (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING',  (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING',(0,0),(-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+    ]))
+    story.append(details_table)
+    story.append(Spacer(1, 0.5*cm))
+
+    # AI Narrative
+    story.append(Paragraph("AI Risk Assessment Narrative", section_style))
+    story.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#cbd5e1')))
+    story.append(Spacer(1, 0.2*cm))
+    body_style = ParagraphStyle('Body', parent=styles['Normal'],
+        fontSize=10, leading=16, textColor=colors.HexColor('#1e293b'), spaceAfter=8)
+    for para in ai_narrative.strip().split('\n'):
+        if para.strip():
+            story.append(Paragraph(para.strip(), body_style))
+    story.append(Spacer(1, 0.5*cm))
+
+    # Footer
+    story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#cbd5e1')))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'],
+        fontSize=8, textColor=colors.HexColor('#94a3b8'), alignment=TA_CENTER, spaceBefore=4)
+    story.append(Paragraph("This report was automatically generated by the Transaction Risk Analyzer. It is intended for internal use by authorized loan officers only.", footer_style))
+    story.append(Paragraph("© 2025 Risk Analysis System — Confidential", footer_style))
+
+    doc.build(story)
+    buffer.seek(0)
+    response = make_response(buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=risk_report_{tx_id}.pdf'
+    return response
 
 # =========================================
 # RUN FLASK APP
