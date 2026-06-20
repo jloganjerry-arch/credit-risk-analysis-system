@@ -258,7 +258,7 @@ def clear_chat():
 # =========================================
 @app.route('/api/simulate', methods=['POST'])
 def api_simulate():
-    if model is None:
+    if model is None and model_catboost is None:
         return jsonify({"error": "Model not loaded"}), 500
     try:
         data = request.get_json()
@@ -438,7 +438,7 @@ def home():
 @app.route('/predict', methods=['POST'])
 @login_required
 def predict():
-    if model is None:
+    if model is None and model_catboost is None:
         return render_template('index.html', prediction_text="Model not trained yet. Please run training script.")
 
     # Get raw inputs
@@ -839,7 +839,7 @@ def batch_predict():
         return render_template('batch_results.html',
                                username=current_user.username, role=current_user.role,
                                results=None)
-    if model is None:
+    if model is None and model_catboost is None:
         return render_template('batch_results.html', error='Model not loaded.',
                                username=current_user.username, role=current_user.role, results=None)
     if 'csv_file' not in request.files or request.files['csv_file'].filename == '':
