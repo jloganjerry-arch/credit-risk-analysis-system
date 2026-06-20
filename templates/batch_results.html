@@ -164,8 +164,12 @@
                     </button>
                 </form>
 
-                <div class="template-note">
-                    CSV columns required: <code>contract_type</code>, <code>age</code>, <code>credit</code>, <code>income</code>, <code>income_type</code>, <code>education</code>, <code>occupation_type</code>, <code>days_employed</code>
+                <div class="template-note" style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
+                    <strong>CSV columns required:</strong> <code>contract_type</code>, <code>age</code>, <code>credit</code>, <code>income</code>, <code>income_type</code>, <code>education</code>, <code>occupation_type</code>, <code>days_employed</code>
+                    <br><br>
+                    <a href="/download_template" style="color: #60a5fa; text-decoration: underline; font-weight: 600; display: inline-flex; align-items: center; gap: 0.3rem;">
+                        📥 Download Sample CSV Template
+                    </a>
                 </div>
             </div>
             {% endif %}
@@ -221,7 +225,7 @@
                             <tr>
                                 {% if r.get('error') %}
                                 <td>{{ r.row }}</td>
-                                <td colspan="6" style="color:#f87171; font-size:0.82rem;">Error: {{ r.error }}</td>
+                                <td colspan="6" style="color:#f87171; font-size:0.82rem; font-weight: 500;">⚠️ Error: {{ r.error }}</td>
                                 <td><span class="badge badge-error">Error</span></td>
                                 {% else %}
                                 <td style="font-weight:600; color:#93c5fd;">{{ r.row }}</td>
@@ -285,12 +289,121 @@
 
         function handleFileSelect(input) {
             if (input.files && input.files[0]) {
-                const name = input.files[0].name;
+                const file = input.files[0];
+                const name = file.name;
                 const chosen = document.getElementById('fileChosen');
-                chosen.textContent = '✅ Selected: ' + name;
-                chosen.style.display = 'block';
-                if (uploadBtn) uploadBtn.disabled = false;
+                
+                // Clear any existing alert/error in the UI
+                const oldAlert = document.getElementById('clientAlert');
+                if (oldAlert) oldAlert.remove();
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    const lines = text.split(/\r?\n/);
+                    if (lines.length === 0 || lines[0].trim() === '') {
+                        showClientError("The CSV file is empty.");
+                        return;
+                    }
+
+                    // Parse headers
+                    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, '').replace(/ /g, '_'));
+                    const requiredCols = ['contract_type', 'age', 'credit', 'income', 'income_type', 'education', 'occupation_type', 'days_employed'];
+                    const missing = requiredCols.filter(col => !headers.includes(col));
+                    
+                    if (missing.length > 0) {
+                        showClientError(`Missing required columns in CSV: ${missing.join(', ')}`);
+                        return;
+                    }
+
+                    // Validate rows
+                    let rowErrors = [];
+                    for (let i = 1; i < lines.length; i++) {
+                        if (lines[i].trim() === '') continue;
+                        
+                        const cols = lines[i].split(',').map(c => c.trim().replace(/['"]/g, ''));
+                        
+                        const getVal = (colName) => {
+                            const idx = headers.indexOf(colName);
+                            return idx !== -1 ? cols[idx] : undefined;
+                        };
+
+                        const age = getVal('age');
+                        const credit = getVal('credit');
+                        const income = getVal('income');
+                        const daysEmployed = getVal('days_employed');
+
+                        let lineErrors = [];
+                        
+                        if (age === undefined || age === '') {
+                            lineErrors.push("age is empty");
+                        } else if (isNaN(age) || parseFloat(age) <= 0 || parseFloat(age) > 120) {
+                            lineErrors.push(`age must be between 1 and 120 (got '${age}')`);
+                        }
+
+                        if (credit === undefined || credit === '') {
+                            lineErrors.push("credit is empty");
+                        } else if (isNaN(credit) || parseFloat(credit) < 0) {
+                            lineErrors.push(`credit must be positive (got '${credit}')`);
+                        }
+
+                        if (income === undefined || income === '') {
+                            lineErrors.push("income is empty");
+                        } else if (isNaN(income) || parseFloat(income) < 0) {
+                            lineErrors.push(`income must be positive (got '${income}')`);
+                        }
+
+                        if (daysEmployed === undefined || daysEmployed === '') {
+                            lineErrors.push("days_employed is empty");
+                        } else if (isNaN(daysEmployed)) {
+                            lineErrors.push(`days_employed must be a number (got '${daysEmployed}')`);
+                        }
+
+                        // Check required string columns
+                        ['contract_type', 'income_type', 'education', 'occupation_type'].forEach(field => {
+                            const val = getVal(field);
+                            if (val === undefined || val === '') {
+                                lineErrors.push(`${field} is empty`);
+                            }
+                        });
+
+                        if (lineErrors.length > 0) {
+                            rowErrors.push(`Row ${i + 1}: ${lineErrors.join('; ')}`);
+                        }
+                    }
+
+                    if (rowErrors.length > 0) {
+                        showClientError("CSV contains data validation errors:\n" + rowErrors.slice(0, 5).join('\n') + (rowErrors.length > 5 ? `\n...and ${rowErrors.length - 5} more errors.` : ''));
+                        return;
+                    }
+
+                    // All checks passed!
+                    chosen.textContent = '✅ Selected: ' + name + ' (Validation passed!)';
+                    chosen.style.display = 'block';
+                    chosen.style.color = '#6ee7b7';
+                    if (uploadBtn) uploadBtn.disabled = false;
+                };
+
+                reader.readAsText(file);
             }
+        }
+
+        function showClientError(msg) {
+            const chosen = document.getElementById('fileChosen');
+            
+            chosen.style.display = 'none';
+            if (uploadBtn) uploadBtn.disabled = true;
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-error';
+            alertDiv.id = 'clientAlert';
+            alertDiv.style.marginTop = '1rem';
+            alertDiv.style.textAlign = 'left';
+            alertDiv.style.whiteSpace = 'pre-wrap';
+            alertDiv.innerHTML = `⚠️ <strong>Validation Error:</strong><br>${msg}`;
+            
+            const dropZone = document.getElementById('dropZone');
+            dropZone.parentNode.insertBefore(alertDiv, dropZone.nextSibling);
         }
 
         function showProcessing() {

@@ -746,6 +746,25 @@ Use formal banking language. Do NOT use markdown or asterisks."""
 # =========================================
 # BATCH PREDICT (CSV Upload)
 # =========================================
+# =========================================
+# DOWNLOAD TEMPLATE CSV
+# =========================================
+@app.route('/download_template')
+@login_required
+def download_template():
+    csv_content = (
+        "contract_type,age,credit,income,income_type,education,occupation_type,days_employed\n"
+        "Cash loans,42,450000,180000,Working,Secondary / special education,Laborers,1200\n"
+        "Revolving loans,29,200000,120000,Commercial associate,Higher education,Core staff,450\n"
+    )
+    response = make_response(csv_content)
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = 'attachment; filename=applicant_batch_template.csv'
+    return response
+
+# =========================================
+# BATCH PREDICT (CSV Upload with Validation)
+# =========================================
 @app.route('/batch_predict', methods=['GET', 'POST'])
 @login_required
 def batch_predict():
@@ -767,38 +786,91 @@ def batch_predict():
         return render_template('batch_results.html', error=f'Could not read CSV: {e}',
                                username=current_user.username, role=current_user.role, results=None)
 
-    # Expected columns mapping — flexible header names
-    col_map = {
-        'contract_type': 'NAME_CONTRACT_TYPE',
-        'age': 'DAYS_BIRTH',
-        'credit': 'AMT_CREDIT',
-        'income': 'AMT_INCOME_TOTAL',
-        'income_type': 'NAME_INCOME_TYPE',
-        'education': 'NAME_EDUCATION_TYPE',
-        'occupation_type': 'OCCUPATION_TYPE',
-        'days_employed': 'DAYS_EMPLOYED'
-    }
+    # Normalize column names
     df.columns = [c.strip().lower().replace(' ', '_') for c in df.columns]
+
+    # Required columns check
+    required_cols = ['contract_type', 'age', 'credit', 'income', 'income_type', 'education', 'occupation_type', 'days_employed']
+    missing_cols = [c for c in required_cols if c not in df.columns]
+    if missing_cols:
+        return render_template('batch_results.html', error=f"Missing required columns in CSV: {', '.join(missing_cols)}",
+                               username=current_user.username, role=current_user.role, results=None)
+
     results = []
     db_conn = sqlite3.connect('history.db')
     db_cursor = db_conn.cursor()
 
     for idx, row in df.iterrows():
         try:
+            errors = []
+            
+            raw_contract = row.get('contract_type')
+            if pd.isna(raw_contract) or str(raw_contract).strip() == '':
+                errors.append("contract_type is empty")
+            else:
+                raw_contract = str(raw_contract).strip()
+
+            raw_age = row.get('age')
+            try:
+                age_val = float(raw_age)
+                if pd.isna(raw_age) or age_val <= 0 or age_val > 120:
+                    errors.append(f"age must be between 1 and 120 (got '{raw_age}')")
+            except (ValueError, TypeError):
+                errors.append(f"age must be a number (got '{raw_age}')")
+
+            raw_credit = row.get('credit')
+            try:
+                credit_val = float(raw_credit)
+                if pd.isna(raw_credit) or credit_val < 0:
+                    errors.append(f"credit must be a positive number (got '{raw_credit}')")
+            except (ValueError, TypeError):
+                errors.append(f"credit must be a number (got '{raw_credit}')")
+
+            raw_income = row.get('income')
+            try:
+                income_val = float(raw_income)
+                if pd.isna(raw_income) or income_val < 0:
+                    errors.append(f"income must be a positive number (got '{raw_income}')")
+            except (ValueError, TypeError):
+                errors.append(f"income must be a number (got '{raw_income}')")
+
+            raw_income_type = row.get('income_type')
+            if pd.isna(raw_income_type) or str(raw_income_type).strip() == '':
+                errors.append("income_type is empty")
+
+            raw_education = row.get('education')
+            if pd.isna(raw_education) or str(raw_education).strip() == '':
+                errors.append("education is empty")
+
+            raw_occupation_type = row.get('occupation_type')
+            if pd.isna(raw_occupation_type) or str(raw_occupation_type).strip() == '':
+                errors.append("occupation_type is empty")
+
+            raw_days_employed = row.get('days_employed')
+            try:
+                days_employed_val = float(raw_days_employed)
+                if pd.isna(raw_days_employed):
+                    errors.append("days_employed must be a valid number")
+            except (ValueError, TypeError):
+                errors.append(f"days_employed must be a number (got '{raw_days_employed}')")
+
+            if errors:
+                raise ValueError("; ".join(errors))
+
             raw_data = {
-                'NAME_CONTRACT_TYPE': str(row.get('contract_type', 'Cash loans')),
-                'DAYS_BIRTH': float(row.get('age', 30)) * 365,
-                'AMT_CREDIT': float(row.get('credit', 300000)),
-                'AMT_INCOME_TOTAL': float(row.get('income', 150000)),
-                'NAME_INCOME_TYPE': str(row.get('income_type', 'Working')),
-                'NAME_EDUCATION_TYPE': str(row.get('education', 'Higher education')),
-                'OCCUPATION_TYPE': str(row.get('occupation_type', 'Managers')),
-                'DAYS_EMPLOYED': float(row.get('days_employed', 365))
+                'NAME_CONTRACT_TYPE': str(raw_contract),
+                'DAYS_BIRTH': age_val * 365,
+                'AMT_CREDIT': credit_val,
+                'AMT_INCOME_TOTAL': income_val,
+                'NAME_INCOME_TYPE': str(raw_income_type).strip(),
+                'NAME_EDUCATION_TYPE': str(raw_education).strip(),
+                'OCCUPATION_TYPE': str(raw_occupation_type).strip(),
+                'DAYS_EMPLOYED': days_employed_val
             }
-            age = float(row.get('age', 30))
-            credit = raw_data['AMT_CREDIT']
-            income = raw_data['AMT_INCOME_TOTAL']
-            days_employed = raw_data['DAYS_EMPLOYED']
+            age = age_val
+            credit = credit_val
+            income = income_val
+            days_employed = days_employed_val
 
             input_df = pd.DataFrame([raw_data])
             input_df_imputed = pd.DataFrame(imputer.transform(input_df), columns=features)
