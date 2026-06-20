@@ -407,6 +407,25 @@
             border-color: #10b981;
         }
 
+        .btn-email {
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-email:hover {
+            background: #f59e0b;
+            color: white;
+            border-color: #f59e0b;
+        }
+
         /* Modal Styles */
         .modal-overlay {
             position: fixed;
@@ -533,6 +552,7 @@
             {% endif %}
             <a href="/chat" class="sidebar-item">AI Assistant</a>
             <a href="/batch_predict" class="sidebar-item">Batch Upload</a>
+            <a href="/api_docs" class="sidebar-item">API Docs</a>
             {% if role == 'admin' %}
             <a href="/register" class="sidebar-item">Manage Users</a>
             {% endif %}
@@ -626,6 +646,7 @@
                                             onclick="openReasonModal(this.nextElementSibling.innerHTML, this.dataset.rowJson)">View Analysis</button>
                                         <div style="display: none;">{{ row[7] | safe }}</div>
                                         <a class="btn-pdf" href="/export_pdf/{{ row[0] }}" target="_blank">📄 PDF</a>
+                                        <button class="btn-email" onclick="openEmailModal({{ row[0] }})">📧 Email</button>
                                     </div>
                                 {% else %}
                                     -
@@ -658,8 +679,87 @@
         </div>
     </div>
 
+    <!-- Email Modal -->
+    <div class="modal-overlay" id="emailModalOverlay" onclick="closeEmailModal()"></div>
+    <div class="reason-modal" id="emailModal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>Email Risk Report</h3>
+            <button class="close-btn" onclick="closeEmailModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="emailReportForm" onsubmit="sendReportEmail(event)">
+                <input type="hidden" id="emailTransactionId" name="transaction_id">
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="recipientEmail" style="display:block; margin-bottom:0.5rem; font-size:0.9rem; color:var(--text-muted);">Recipient Email</label>
+                    <input type="email" id="recipientEmail" required style="width:100%; padding:0.75rem; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:white; font-size:0.95rem;" placeholder="colleague@example.com">
+                </div>
+                <div id="emailModalMessage" style="margin-bottom: 1rem; font-size: 0.9rem; display: none;"></div>
+                <button type="submit" class="btn-submit" id="emailSubmitBtn" style="width: 100%; background: var(--primary); color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+                    Send Email
+                </button>
+            </form>
+        </div>
+    </div>
+
     <script>
         let currentModalData = null;
+
+        function openEmailModal(transactionId) {
+            document.getElementById('emailTransactionId').value = transactionId;
+            document.getElementById('recipientEmail').value = '';
+            const msgEl = document.getElementById('emailModalMessage');
+            msgEl.style.display = 'none';
+            msgEl.className = '';
+            
+            document.getElementById('emailModalOverlay').classList.add('active');
+            document.getElementById('emailModal').classList.add('active');
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailModalOverlay').classList.remove('active');
+            document.getElementById('emailModal').classList.remove('active');
+        }
+
+        function sendReportEmail(event) {
+            event.preventDefault();
+            const txId = document.getElementById('emailTransactionId').value;
+            const email = document.getElementById('recipientEmail').value;
+            const msgEl = document.getElementById('emailModalMessage');
+            const submitBtn = document.getElementById('emailSubmitBtn');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Sending...';
+            msgEl.style.display = 'block';
+            msgEl.innerText = 'Processing report...';
+            msgEl.style.color = '#3b82f6';
+            
+            const formData = new FormData();
+            formData.append('email', email);
+            
+            fetch(`/email_report/${txId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(async response => {
+                const text = await response.text();
+                if (response.ok) {
+                    msgEl.style.color = '#10b981';
+                    msgEl.innerText = '✅ ' + text;
+                    setTimeout(closeEmailModal, 2000);
+                } else {
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = '❌ ' + text;
+                }
+            })
+            .catch(err => {
+                msgEl.style.color = '#ef4444';
+                msgEl.innerText = '❌ Request failed. Please check your connection.';
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Send Email';
+            });
+        }
 
         function openReasonModal(htmlContent, rowJsonStr) {
             document.getElementById('reasonModalBody').innerHTML = htmlContent;

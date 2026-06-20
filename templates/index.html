@@ -266,6 +266,104 @@
             box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
         }
 
+        .btn-email-report {
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        .btn-email-report:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(245, 158, 11, 0.4);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        .reason-modal {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -40%);
+            width: 500px;
+            max-width: 90%;
+            background: var(--bg-card);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            z-index: 1001;
+            display: none;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-height: 80vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        .reason-modal.active {
+            display: flex;
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: var(--text-main);
+            font-size: 1.1rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover { color: var(--danger); }
+
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            color: var(--text-main);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
         /* What-If Simulator */
         .simulator-card {
             background: rgba(15, 23, 42, 0.7);
@@ -703,6 +801,7 @@
             {% endif %}
             <a href="/chat" class="sidebar-item">AI Assistant</a>
             <a href="/batch_predict" class="sidebar-item">Batch Upload</a>
+            <a href="/api_docs" class="sidebar-item">API Docs</a>
             {% if role == 'admin' %}
             <a href="/register" class="sidebar-item">Manage Users</a>
             {% endif %}
@@ -767,10 +866,16 @@
                 </button>
 
                 {% if transaction_id %}
-                <a href="/export_pdf/{{ transaction_id }}" target="_blank" class="btn-pdf-report">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                    Download AI Report
-                </a>
+                <div style="display: flex; gap: 0.8rem; margin-top: 0.8rem;">
+                    <a href="/export_pdf/{{ transaction_id }}" target="_blank" class="btn-pdf-report" style="margin-top:0; flex:1;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        Download PDF
+                    </a>
+                    <button type="button" class="btn-email-report" onclick="openEmailModal({{ transaction_id }})" style="margin-top:0; flex:1;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        Email Report
+                    </button>
+                </div>
                 {% endif %}
 
                 <!-- 5. What-If Scenario Simulator -->
@@ -884,10 +989,89 @@
 
     </div> <!-- End Main Content -->
 
+    <!-- Email Modal -->
+    <div class="modal-overlay" id="emailModalOverlay" onclick="closeEmailModal()"></div>
+    <div class="reason-modal" id="emailModal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>Email Risk Report</h3>
+            <button class="close-btn" onclick="closeEmailModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="emailReportForm" onsubmit="sendReportEmail(event)">
+                <input type="hidden" id="emailTransactionId" name="transaction_id">
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="recipientEmail" style="display:block; margin-bottom:0.5rem; font-size:0.9rem; color:var(--text-muted);">Recipient Email</label>
+                    <input type="email" id="recipientEmail" required style="width:100%; padding:0.75rem; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:white; font-size:0.95rem;" placeholder="colleague@example.com">
+                </div>
+                <div id="emailModalMessage" style="margin-bottom: 1rem; font-size: 0.9rem; display: none;"></div>
+                <button type="submit" class="btn-submit" id="emailSubmitBtn" style="width: 100%; background: var(--primary); color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+                    Send Email
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- AI Slide Panel Removed (Redirecting to AI Assistant Instead) -->
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
+        function openEmailModal(transactionId) {
+            document.getElementById('emailTransactionId').value = transactionId;
+            document.getElementById('recipientEmail').value = '';
+            const msgEl = document.getElementById('emailModalMessage');
+            msgEl.style.display = 'none';
+            msgEl.className = '';
+            
+            document.getElementById('emailModalOverlay').classList.add('active');
+            document.getElementById('emailModal').classList.add('active');
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailModalOverlay').classList.remove('active');
+            document.getElementById('emailModal').classList.remove('active');
+        }
+
+        function sendReportEmail(event) {
+            event.preventDefault();
+            const txId = document.getElementById('emailTransactionId').value;
+            const email = document.getElementById('recipientEmail').value;
+            const msgEl = document.getElementById('emailModalMessage');
+            const submitBtn = document.getElementById('emailSubmitBtn');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Sending...';
+            msgEl.style.display = 'block';
+            msgEl.innerText = 'Processing report...';
+            msgEl.style.color = '#3b82f6';
+            
+            const formData = new FormData();
+            formData.append('email', email);
+            
+            fetch(`/email_report/${txId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(async response => {
+                const text = await response.text();
+                if (response.ok) {
+                    msgEl.style.color = '#10b981';
+                    msgEl.innerText = '✅ ' + text;
+                    setTimeout(closeEmailModal, 2000);
+                } else {
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = '❌ ' + text;
+                }
+            })
+            .catch(err => {
+                msgEl.style.color = '#ef4444';
+                msgEl.innerText = '❌ Request failed. Please check your connection.';
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Send Email';
+            });
+        }
+
         {% if show_results %}
         // Data injected from backend for the AI call
         const predictionData = {
@@ -900,7 +1084,8 @@
             days_employed: "{{ request.form.get('days_employed') }}",
             occupation: "{{ request.form.get('occupation_type') }}",
             education: "{{ request.form.get('education') }}",
-            risk_reason: `{{ risk_reason | safe }}`
+            risk_reason: `{{ risk_reason | safe }}`,
+            transaction_id: "{{ transaction_id }}"
         };
 
         const analyzeBtn = document.getElementById('analyzeAiBtn');

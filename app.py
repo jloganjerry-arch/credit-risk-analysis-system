@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session, make_response, flash
+from functools import wraps
 import pickle
 import numpy as np
 import pandas as pd
@@ -23,6 +24,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+import psycopg2
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -53,68 +55,129 @@ class User(UserMixin):
         self.username = username
         self.role = role
 
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+def get_db_connection():
+    if DATABASE_URL:
+        return psycopg2.connect(DATABASE_URL)
+    else:
+        return sqlite3.connect('history.db')
+
+def format_query(sql):
+    if DATABASE_URL:
+        return sql.replace('?', '%s')
+    return sql
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if DATABASE_URL:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS predictions (
+                id SERIAL PRIMARY KEY,
+                contract_type TEXT,
+                credit_amount REAL,
+                age REAL,
+                result TEXT,
+                risk_score REAL,
+                occupation_type TEXT,
+                risk_reason TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'analyst'
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS predictions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                contract_type TEXT,
+                credit_amount REAL,
+                age REAL,
+                result TEXT,
+                risk_score REAL,
+                occupation_type TEXT,
+                risk_reason TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'analyst'
+            )
+        ''')
+
+    cursor.execute(format_query('SELECT COUNT(*) FROM users'))
+    if cursor.fetchone()[0] == 0:
+        hashed = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cursor.execute(format_query('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)'),
+                       ('admin', hashed, 'admin'))
+    conn.commit()
+    conn.close()
+
+init_db()
+
 @login_manager.user_loader
 def load_user(user_id):
-    conn = sqlite3.connect('history.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, username, role FROM users WHERE id=?', (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return User(row[0], row[1], row[2])
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(format_query('SELECT id, username, role FROM users WHERE id=?'), (int(user_id),))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return User(row[0], row[1], row[2])
+    except Exception as e:
+        print(f"Error loading user: {e}")
     return None
 
 # =========================================
-# CREATE DATABASE
+# LOAD TRAINED MODEL & PROCESSORS (Ensemble & Fallback)
 # =========================================
-conn = sqlite3.connect('history.db', check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS predictions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        contract_type TEXT,
-        credit_amount REAL,
-        age REAL,
-        result TEXT,
-        risk_score REAL,
-        occupation_type TEXT,
-        risk_reason TEXT
-    )
-''')
-# Users table for multi-user auth
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'analyst'
-    )
-''')
-# Alter table to add risk_reason if it doesn't exist from older versions
-try:
-    cursor.execute('ALTER TABLE predictions ADD COLUMN risk_reason TEXT')
-except:
-    pass
+model_catboost, model_lightgbm, model_xgboost = None, None, None
+model = None
 
-# Seed default admin user if no users exist
-cursor.execute('SELECT COUNT(*) FROM users')
-if cursor.fetchone()[0] == 0:
-    hashed = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    cursor.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-                   ('admin', hashed, 'admin'))
-conn.commit()
-
-# =========================================
-# LOAD TRAINED MODEL & PROCESSORS
-# =========================================
 try:
-    model = pickle.load(open('credit_fraud_model.pkl', 'rb'))
     label_encoders = pickle.load(open('label_encoders.pkl', 'rb'))
     imputer = pickle.load(open('imputer.pkl', 'rb'))
     explainer = pickle.load(open('shap_explainer.pkl', 'rb'))
+    
+    # Load Ensemble Models
+    if os.path.exists('model_catboost.pkl') and os.path.exists('model_lightgbm.pkl') and os.path.exists('model_xgboost.pkl'):
+        model_catboost = pickle.load(open('model_catboost.pkl', 'rb'))
+        model_lightgbm = pickle.load(open('model_lightgbm.pkl', 'rb'))
+        model_xgboost = pickle.load(open('model_xgboost.pkl', 'rb'))
+        print("Ensemble Models (CatBoost, LightGBM, XGBoost) loaded successfully!")
+    else:
+        # Fallback to single CatBoost model
+        model = pickle.load(open('credit_fraud_model.pkl', 'rb'))
+        print("Fallback Model (Single CatBoost) loaded.")
 except Exception as e:
-    print(f"Warning: Model files missing or corrupt. Please run train_model.py first. Error: {e}")
-    model, label_encoders, imputer, explainer = None, None, None, None
+    print(f"Warning: Model files missing or corrupt. Error: {e}")
+    label_encoders, imputer, explainer = None, None, None
+
+def predict_ensemble_proba(input_df):
+    if model_catboost and model_lightgbm and model_xgboost:
+        try:
+            p_cat = model_catboost.predict_proba(input_df)[0][1]
+            p_lgb = model_lightgbm.predict_proba(input_df)[0][1]
+            p_xgb = model_xgboost.predict_proba(input_df)[0][1]
+            return (p_cat + p_lgb + p_xgb) / 3.0
+        except Exception as e:
+            print(f"Error in ensemble prediction: {e}. Falling back to CatBoost.")
+            if model_catboost:
+                return model_catboost.predict_proba(input_df)[0][1]
+            return 0.5
+    elif model:
+        return model.predict_proba(input_df)[0][1]
+    return 0.5
 
 features = [
     'NAME_CONTRACT_TYPE',
@@ -227,12 +290,8 @@ def api_simulate():
         for col in input_df_imputed.columns:
             input_df_imputed[col] = input_df_imputed[col].astype(float)
 
-        prediction = model.predict(input_df_imputed)
-        if hasattr(model, 'predict_proba'):
-            probabilities = model.predict_proba(input_df_imputed)
-            risk_score = round(probabilities[0][1] * 100, 2)
-        else:
-            risk_score = 100.0 if prediction[0] == 1 else 0.0
+        proba = predict_ensemble_proba(input_df_imputed)
+        risk_score = round(proba * 100, 2)
 
         # Apply rule-based overrides
         if age < 25 and income < 30000 and credit > 250000:
@@ -318,9 +377,9 @@ def login():
 def validate_login():
     username = request.form['username']
     password = request.form['password']
-    conn = sqlite3.connect('history.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT id, username, password_hash, role FROM users WHERE username=?', (username,))
+    cursor.execute(format_query('SELECT id, username, password_hash, role FROM users WHERE username=?'), (username,))
     row = cursor.fetchone()
     conn.close()
     if row and bcrypt.checkpw(password.encode('utf-8'), row[2].encode('utf-8')):
@@ -351,15 +410,18 @@ def register():
             return render_template('register.html', error='All fields are required.')
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         try:
-            conn = sqlite3.connect('history.db')
+            conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+            cursor.execute(format_query('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)'),
                            (username, hashed, role))
             conn.commit()
             conn.close()
             return render_template('register.html', success=f'User "{username}" created successfully!')
-        except sqlite3.IntegrityError:
-            return render_template('register.html', error=f'Username "{username}" already exists.')
+        except Exception as e:
+            err_str = str(e).lower()
+            if 'unique' in err_str or 'duplicate' in err_str or 'already exists' in err_str:
+                return render_template('register.html', error=f'Username "{username}" already exists.')
+            return render_template('register.html', error=f'Database error: {e}')
     return render_template('register.html')
 
 # =========================================
@@ -424,14 +486,9 @@ def predict():
         input_df_imputed[col] = input_df_imputed[col].astype(float)
 
     # ML Model Prediction
-    prediction = model.predict(input_df_imputed)
-    if hasattr(model, 'predict_proba'):
-        probabilities = model.predict_proba(input_df_imputed)
-        risk_score = round(probabilities[0][1] * 100, 2)
-    else:
-        risk_score = 100.0 if prediction[0] == 1 else 0.0
-        
-    is_high_risk = (prediction[0] == 1)
+    proba = predict_ensemble_proba(input_df_imputed)
+    risk_score = round(proba * 100, 2)
+    is_high_risk = (proba >= 0.5)
 
     # =========================================
     # RULE-BASED VALIDATION OVERRIDES
@@ -544,15 +601,25 @@ def predict():
     # =========================================
     # SAVE TO DATABASE
     # =========================================
-    conn = sqlite3.connect('history.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO predictions (contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (str(raw_data['NAME_CONTRACT_TYPE']), float(credit), float(age), risk_category, float(risk_score), str(raw_data['OCCUPATION_TYPE']), risk_reason_html))
-    tx_id = cursor.lastrowid
+    if DATABASE_URL:
+        cursor.execute(format_query("""
+            INSERT INTO predictions (contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+        """), (str(raw_data['NAME_CONTRACT_TYPE']), float(credit), float(age), risk_category, float(risk_score), str(raw_data['OCCUPATION_TYPE']), risk_reason_html))
+        tx_id = cursor.fetchone()[0]
+    else:
+        cursor.execute("""
+            INSERT INTO predictions (contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (str(raw_data['NAME_CONTRACT_TYPE']), float(credit), float(age), risk_category, float(risk_score), str(raw_data['OCCUPATION_TYPE']), risk_reason_html))
+        tx_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    if risk_score >= 70:
+        trigger_email_alert(tx_id, str(raw_data['NAME_CONTRACT_TYPE']), float(credit), float(age), risk_score, risk_category)
 
     return render_template('index.html', prediction_text=risk_category, risk_score=risk_score, risk_reason=risk_reason_html, show_results=True, transaction_id=tx_id)
 
@@ -562,9 +629,9 @@ def predict():
 @app.route('/history')
 @login_required
 def history():
-    conn = sqlite3.connect('history.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM predictions ORDER BY id DESC")
+    cursor.execute(format_query("SELECT * FROM predictions ORDER BY id DESC"))
     rows = cursor.fetchall()
     conn.close()
     return render_template('history.html', predictions=rows, username=current_user.username, role=current_user.role)
@@ -577,9 +644,9 @@ def history():
 def analysis():
     if current_user.role not in ['admin', 'manager']:
         return redirect(url_for('home'))
-    conn = sqlite3.connect('history.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT result, COUNT(*) FROM predictions GROUP BY result")
+    cursor.execute(format_query("SELECT result, COUNT(*) FROM predictions GROUP BY result"))
     results = cursor.fetchall()
     high_risk_count = 0
     low_risk_count = 0
@@ -607,9 +674,9 @@ def analysis():
 @app.route('/export_pdf/<int:transaction_id>')
 def export_pdf(transaction_id):
     # Fetch transaction from DB
-    conn = sqlite3.connect('history.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM predictions WHERE id=?", (transaction_id,))
+    cursor.execute(format_query("SELECT * FROM predictions WHERE id=?"), (transaction_id,))
     row = cursor.fetchone()
     conn.close()
     if not row:
@@ -797,7 +864,7 @@ def batch_predict():
                                username=current_user.username, role=current_user.role, results=None)
 
     results = []
-    db_conn = sqlite3.connect('history.db')
+    db_conn = get_db_connection()
     db_cursor = db_conn.cursor()
 
     for idx, row in df.iterrows():
@@ -882,7 +949,7 @@ def batch_predict():
             for col in input_df_imputed.columns:
                 input_df_imputed[col] = input_df_imputed[col].astype(float)
 
-            proba = model.predict_proba(input_df_imputed)[0][1] if hasattr(model, 'predict_proba') else 0.5
+            proba = predict_ensemble_proba(input_df_imputed)
             risk_score = round(proba * 100, 2)
 
             # Rule overrides
@@ -892,10 +959,10 @@ def batch_predict():
 
             risk_category = 'High Risk' if risk_score >= 70 else ('Medium Risk' if risk_score >= 40 else 'Low Risk')
 
-            db_cursor.execute("""
+            db_cursor.execute(format_query("""
                 INSERT INTO predictions (contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (raw_data['NAME_CONTRACT_TYPE'], credit, age, risk_category, risk_score,
+            """), (raw_data['NAME_CONTRACT_TYPE'], credit, age, risk_category, risk_score,
                   raw_data['OCCUPATION_TYPE'], 'Batch prediction'))
 
             results.append({
@@ -926,9 +993,9 @@ def batch_predict():
 @app.route('/export_excel')
 @login_required
 def export_excel():
-    conn = sqlite3.connect('history.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM predictions ORDER BY id DESC")
+    cursor.execute(format_query("SELECT * FROM predictions ORDER BY id DESC"))
     rows = cursor.fetchall()
     conn.close()
 
@@ -981,6 +1048,314 @@ def export_excel():
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     response.headers['Content-Disposition'] = 'attachment; filename=transaction_history.xlsx'
     return response
+
+# =========================================
+# EMAIL ALERTS HELPER (smtplib + threading)
+# =========================================
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+import threading
+
+def trigger_email_alert(tx_id, contract_type, credit, age, score, category):
+    smtp_server = os.environ.get('SMTP_SERVER')
+    smtp_port = os.environ.get('SMTP_PORT')
+    smtp_user = os.environ.get('SMTP_USER')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+    admin_email = os.environ.get('ADMIN_EMAIL')
+
+    if not all([smtp_server, smtp_port, smtp_user, smtp_password, admin_email]):
+        print("Warning: SMTP credentials missing in .env. Skipping email alert.")
+        return
+
+    def send_mail_async():
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = smtp_user
+            msg['To'] = admin_email
+            msg['Subject'] = f"🚨 HIGH RISK CREDIT ALERT: Transaction #{tx_id} ({score}%)"
+
+            body = (
+                f"A high-risk loan application has been detected by the Transaction Risk Analyzer.\n\n"
+                f"--- Application Summary ---\n"
+                f"Transaction ID: #{tx_id}\n"
+                f"Contract Type: {contract_type}\n"
+                f"Credit Amount: Rs. {credit:,.2f}\n"
+                f"Age: {age} years\n"
+                f"Calculated Risk Score: {score}%\n"
+                f"Risk Category: {category}\n\n"
+                f"Please log in to the dashboard to conduct a full counterfactual sensitivity analysis.\n"
+            )
+            msg.attach(MIMEText(body, 'plain'))
+
+            server = smtplib.SMTP(smtp_server, int(smtp_port))
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_user, admin_email, msg.as_string())
+            server.quit()
+            print(f"Alert email sent successfully to {admin_email}!")
+        except Exception as e:
+            print(f"Error sending email alert: {e}")
+
+    # Run in background thread to avoid blocking response
+    threading.Thread(target=send_mail_async, daemon=True).start()
+
+# =========================================
+# ROUTE: EMAIL PDF REPORT ON DEMAND
+# =========================================
+@app.route('/email_report/<int:transaction_id>', methods=['POST'])
+@login_required
+def email_report(transaction_id):
+    target_email = request.form.get('email', '').strip()
+    if not target_email:
+        return "Target email is required", 400
+
+    smtp_server = os.environ.get('SMTP_SERVER')
+    smtp_port = os.environ.get('SMTP_PORT')
+    smtp_user = os.environ.get('SMTP_USER')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+
+    if not all([smtp_server, smtp_port, smtp_user, smtp_password]):
+        return "SMTP configuration missing on server.", 500
+
+    # Fetch transaction from DB to verify it exists
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(format_query("SELECT id FROM predictions WHERE id=?"), (transaction_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return "Transaction not found", 404
+
+    # Trigger export_pdf locally to compile the PDF
+    try:
+        pdf_response = export_pdf(transaction_id)
+        if pdf_response.status_code != 200:
+            return "Could not generate PDF report", 500
+        pdf_bytes = pdf_response.data
+    except Exception as e:
+        return f"Error compiling report: {e}", 500
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = target_email
+        msg['Subject'] = f"📄 Credit Risk Analysis Report - ID #{transaction_id}"
+
+        body = (
+            f"Dear Team member,\n\n"
+            f"Please find attached the official Credit Risk Assessment PDF report for application #{transaction_id}.\n\n"
+            f"Best regards,\n"
+            f"Transaction Risk Analyzer System\n"
+        )
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Attach PDF
+        attachment = MIMEApplication(pdf_bytes, _subtype="pdf")
+        attachment.add_header('Content-Disposition', 'attachment', filename=f"risk_report_{transaction_id}.pdf")
+        msg.attach(attachment)
+
+        server = smtplib.SMTP(smtp_server, int(smtp_port))
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.sendmail(smtp_user, target_email, msg.as_string())
+        server.quit()
+        return "Report emailed successfully!"
+    except Exception as e:
+        return f"Error sending email: {e}", 500
+
+# =========================================
+# REST API SECURITY DECORATOR
+# =========================================
+def require_api_key(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get('X-API-KEY')
+        expected_key = os.environ.get('API_KEY', 'credit-risk-default-api-key-2026')
+        if not api_key or api_key != expected_key:
+            return jsonify({'error': 'Unauthorized. Missing or invalid X-API-KEY header.'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+# =========================================
+# API DOCS PAGE
+# =========================================
+@app.route('/api_docs')
+@login_required
+def api_docs():
+    api_key = os.environ.get('API_KEY', 'credit-risk-default-api-key-2026')
+    return render_template('api_docs.html', api_key=api_key)
+
+# =========================================
+# REST API: GET HISTORY predictions
+# =========================================
+@app.route('/api/v1/history', methods=['GET'])
+@require_api_key
+def api_history():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(format_query("SELECT id, contract_type, credit_amount, age, result, risk_score, occupation_type FROM predictions ORDER BY id DESC"))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        predictions = []
+        for r in rows:
+            predictions.append({
+                'id': r[0],
+                'contract_type': r[1],
+                'credit_amount': r[2],
+                'age': r[3],
+                'result': r[4],
+                'risk_score': r[5],
+                'occupation_type': r[6]
+            })
+        return jsonify({'total': len(predictions), 'predictions': predictions})
+    except Exception as e:
+        return jsonify({'error': f'Database error: {e}'}), 500
+
+# =========================================
+# REST API: GET SINGLE prediction
+# =========================================
+@app.route('/api/v1/history/<int:tx_id>', methods=['GET'])
+@require_api_key
+def api_get_prediction(tx_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(format_query("SELECT id, contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason FROM predictions WHERE id=?"), (tx_id,))
+        r = cursor.fetchone()
+        conn.close()
+        if not r:
+            return jsonify({'error': f'Prediction with ID {tx_id} not found.'}), 404
+        
+        return jsonify({
+            'id': r[0],
+            'contract_type': r[1],
+            'credit_amount': r[2],
+            'age': r[3],
+            'result': r[4],
+            'risk_score': r[5],
+            'occupation_type': r[6],
+            'risk_reason': r[7]
+        })
+    except Exception as e:
+        return jsonify({'error': f'Database error: {e}'}), 500
+
+# =========================================
+# REST API: POST /api/v1/predict
+# =========================================
+@app.route('/api/v1/predict', methods=['POST'])
+@require_api_key
+def api_predict():
+    if model_catboost is None and model is None:
+        return jsonify({'error': 'Prediction models not loaded on server.'}), 503
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid payload. JSON format required.'}), 400
+
+    # Required parameters validation
+    required = ['contract_type', 'age', 'credit', 'income', 'income_type', 'education', 'occupation_type', 'days_employed']
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({'error': f"Missing required fields: {', '.join(missing)}"}), 400
+
+    try:
+        raw_contract = str(data['contract_type']).strip()
+        age_val = float(data['age'])
+        credit_val = float(data['credit'])
+        income_val = float(data['income'])
+        raw_income_type = str(data['income_type']).strip()
+        raw_education = str(data['education']).strip()
+        raw_occupation_type = str(data['occupation_type']).strip()
+        days_employed_val = float(data['days_employed'])
+        
+        # Validations
+        if age_val <= 0 or age_val > 120:
+            return jsonify({'error': 'age must be between 1 and 120.'}), 400
+        if credit_val < 0:
+            return jsonify({'error': 'credit must be a positive number.'}), 400
+        if income_val < 0:
+            return jsonify({'error': 'income must be a positive number.'}), 400
+    except (ValueError, TypeError) as e:
+        return jsonify({'error': f'Data type error: {e}. Numbers required for age, credit, income, days_employed.'}), 400
+
+    try:
+        raw_data = {
+            'NAME_CONTRACT_TYPE': raw_contract,
+            'DAYS_BIRTH': age_val * 365,
+            'AMT_CREDIT': credit_val,
+            'AMT_INCOME_TOTAL': income_val,
+            'NAME_INCOME_TYPE': raw_income_type,
+            'NAME_EDUCATION_TYPE': raw_education,
+            'OCCUPATION_TYPE': raw_occupation_type,
+            'DAYS_EMPLOYED': days_employed_val
+        }
+        
+        # Transform using imputer & encoders
+        input_df = pd.DataFrame([raw_data])
+        input_df_imputed = pd.DataFrame(imputer.transform(input_df), columns=features)
+        input_df_imputed['DAYS_BIRTH'] = abs(input_df_imputed['DAYS_BIRTH'].astype(float)) / 365
+        input_df_imputed['DAYS_EMPLOYED'] = abs(input_df_imputed['DAYS_EMPLOYED'].astype(float))
+        
+        for col in ['NAME_CONTRACT_TYPE', 'NAME_INCOME_TYPE', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE']:
+            val = str(input_df_imputed[col].iloc[0])
+            input_df_imputed[col] = label_encoders[col].transform([val])[0] if val in label_encoders[col].classes_ else 0
+            
+        for col in input_df_imputed.columns:
+            input_df_imputed[col] = input_df_imputed[col].astype(float)
+
+        # Ensemble prediction
+        proba = predict_ensemble_proba(input_df_imputed)
+        risk_score = round(proba * 100, 2)
+        
+        # Rules overrides
+        if age_val < 25 and income_val < 30000 and credit_val > 250000:
+            risk_score = max(risk_score, 98.0)
+        elif days_employed_val < 180 and credit_val > 200000:
+            risk_score = max(risk_score, 95.0)
+        elif income_val > 0 and (credit_val / income_val) > 10:
+            risk_score = max(risk_score, 96.0)
+
+        risk_category = 'High Risk' if risk_score >= 70 else ('Medium Risk' if risk_score >= 40 else 'Low Risk')
+        
+        # Build explanation
+        risk_reason_html = f"This application was analyzed via REST API. Calculated Risk: {risk_category} ({risk_score}%)."
+
+        # Save to DB
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if DATABASE_URL:
+            cursor.execute(format_query("""
+                INSERT INTO predictions (contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+            """), (raw_contract, credit_val, age_val, risk_category, risk_score, raw_occupation_type, risk_reason_html))
+            tx_id = cursor.fetchone()[0]
+        else:
+            cursor.execute("""
+                INSERT INTO predictions (contract_type, credit_amount, age, result, risk_score, occupation_type, risk_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (raw_contract, credit_val, age_val, risk_category, risk_score, raw_occupation_type, risk_reason_html))
+            tx_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        # Send alert email if High Risk
+        if risk_score >= 70:
+            trigger_email_alert(tx_id, raw_contract, credit_val, age_val, risk_score, risk_category)
+
+        return jsonify({
+            'success': True,
+            'transaction_id': tx_id,
+            'risk_score': risk_score,
+            'risk_category': risk_category,
+            'recommendation': 'Standard Processing Approved' if risk_category == 'Low Risk' else 'Manual Verification Required'
+        })
+    except Exception as e:
+        return jsonify({'error': f'Prediction pipeline error: {e}'}), 500
 
 # =========================================
 # RUN FLASK APP

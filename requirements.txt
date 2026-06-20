@@ -13,3 +13,5 @@ reportlab
 flask-login
 bcrypt
 python-dotenv
+psycopg2-binary
+lightgbm

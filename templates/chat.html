@@ -368,6 +368,98 @@
             0% { background-position: -200% center; }
             100% { background-position: 200% center; }
         }
+
+        .btn-email-chat {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            pointer-events: all;
+            transition: all 0.2s ease;
+        }
+        .btn-email-chat:hover {
+            background: rgba(245, 158, 11, 0.3);
+            border-color: #f59e0b;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        .reason-modal {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -40%);
+            width: 500px;
+            max-width: 90%;
+            background: var(--bg-card);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+            z-index: 1001;
+            display: none;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-height: 80vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+
+        .reason-modal.active {
+            display: flex;
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: var(--text-main);
+            font-size: 1.1rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover { color: var(--danger); }
+
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            color: var(--text-main);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
     </style>
 </head>
 <body>
@@ -383,6 +475,7 @@
             {% endif %}
             <a href="/chat" class="sidebar-item active">AI Assistant</a>
             <a href="/batch_predict" class="sidebar-item">Batch Upload</a>
+            <a href="/api_docs" class="sidebar-item">API Docs</a>
             {% if current_user.role == 'admin' %}
             <a href="/register" class="sidebar-item">Manage Users</a>
             {% endif %}
@@ -397,7 +490,10 @@
     <div class="main-content">
         <header class="header">
             <h1>AI Assistant<span style="font-size:0.4em; vertical-align:super;">+</span></h1>
-            <button class="btn-clear-chat" id="clearChatBtn">🗑️ Clear Chat</button>
+            <div style="display:flex; gap: 0.8rem; align-items: center;">
+                <button class="btn-email-chat" id="emailReportBtn" style="display: none;" onclick="openEmailModalFromChat()">📧 Email Report</button>
+                <button class="btn-clear-chat" id="clearChatBtn">🗑️ Clear Chat</button>
+            </div>
         </header>
 
         <div class="chat-container">
@@ -433,6 +529,10 @@
                 if (!confirm('Clear the entire conversation?')) return;
                 await fetch('/api/chat/clear', { method: 'POST' });
                 sessionStorage.removeItem('tempChatHistory');
+                sessionStorage.removeItem('activeTransactionId');
+                activeTransactionId = null;
+                const emailBtn = document.getElementById('emailReportBtn');
+                if (emailBtn) emailBtn.style.display = 'none';
                 chatMessages.innerHTML = `
                     <div class="message-row ai">
                         <div class="ai-avatar">✨</div>
@@ -573,11 +673,82 @@
         }
 
         // Check for Pending Analysis from index.html
+        let activeTransactionId = sessionStorage.getItem('activeTransactionId') || null;
+
+        function openEmailModalFromChat() {
+            if (!activeTransactionId) return;
+            document.getElementById('emailTransactionId').value = activeTransactionId;
+            document.getElementById('recipientEmail').value = '';
+            const msgEl = document.getElementById('emailModalMessage');
+            msgEl.style.display = 'none';
+            msgEl.className = '';
+            
+            document.getElementById('emailModalOverlay').classList.add('active');
+            document.getElementById('emailModal').classList.add('active');
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailModalOverlay').classList.remove('active');
+            document.getElementById('emailModal').classList.remove('active');
+        }
+
+        function sendReportEmail(event) {
+            event.preventDefault();
+            const txId = document.getElementById('emailTransactionId').value;
+            const email = document.getElementById('recipientEmail').value;
+            const msgEl = document.getElementById('emailModalMessage');
+            const submitBtn = document.getElementById('emailSubmitBtn');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Sending...';
+            msgEl.style.display = 'block';
+            msgEl.innerText = 'Processing report...';
+            msgEl.style.color = '#3b82f6';
+            
+            const formData = new FormData();
+            formData.append('email', email);
+            
+            fetch(`/email_report/${txId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(async response => {
+                const text = await response.text();
+                if (response.ok) {
+                    msgEl.style.color = '#10b981';
+                    msgEl.innerText = '✅ ' + text;
+                    setTimeout(closeEmailModal, 2000);
+                } else {
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = '❌ ' + text;
+                }
+            })
+            .catch(err => {
+                msgEl.style.color = '#ef4444';
+                msgEl.innerText = '❌ Request failed. Please check your connection.';
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Send Email';
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
+            if (activeTransactionId) {
+                const emailBtn = document.getElementById('emailReportBtn');
+                if (emailBtn) emailBtn.style.display = 'block';
+            }
+
             const pendingAnalysis = sessionStorage.getItem('pendingAiAnalysis');
             if (pendingAnalysis) {
-                sessionStorage.removeItem('pendingAiAnalysis');
                 const data = JSON.parse(pendingAnalysis);
+                if (data.transaction_id) {
+                    activeTransactionId = data.transaction_id;
+                    sessionStorage.setItem('activeTransactionId', activeTransactionId);
+                    const emailBtn = document.getElementById('emailReportBtn');
+                    if (emailBtn) emailBtn.style.display = 'block';
+                }
+                sessionStorage.removeItem('pendingAiAnalysis');
                 
                 // Formulate the user message
                 const userMsg = `Please analyze this transaction:\n\n**Risk Category**: ${data.risk_category}\n**Risk Score**: ${data.risk_score}%\n**Credit Amount**: ₹${data.credit}\n**Income**: ₹${data.income}\n**Age**: ${data.age}\n**Occupation**: ${data.occupation}`;
@@ -621,5 +792,27 @@
             }
         });
     </script>
+
+    <!-- Email Modal -->
+    <div class="modal-overlay" id="emailModalOverlay" onclick="closeEmailModal()"></div>
+    <div class="reason-modal" id="emailModal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>Email Risk Report</h3>
+            <button class="close-btn" onclick="closeEmailModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="emailReportForm" onsubmit="sendReportEmail(event)">
+                <input type="hidden" id="emailTransactionId" name="transaction_id">
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="recipientEmail" style="display:block; margin-bottom:0.5rem; font-size:0.9rem; color:var(--text-muted);">Recipient Email</label>
+                    <input type="email" id="recipientEmail" required style="width:100%; padding:0.75rem; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:white; font-size:0.95rem;" placeholder="colleague@example.com">
+                </div>
+                <div id="emailModalMessage" style="margin-bottom: 1rem; font-size: 0.9rem; display: none;"></div>
+                <button type="submit" class="btn-submit" id="emailSubmitBtn" style="width: 100%; background: var(--primary); color: white; border: none; padding: 0.75rem; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+                    Send Email
+                </button>
+            </form>
+        </div>
+    </div>
 </body>
 </html>
