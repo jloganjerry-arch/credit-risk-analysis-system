@@ -222,27 +222,102 @@
         }
 
         .btn-analyze-ai {
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, #6366f1, #d946ef);
             color: white;
             border: none;
-            padding: 1rem;
-            border-radius: 8px;
+            border-radius: 10px;
+            font-size: 0.95rem;
             font-weight: 600;
             cursor: pointer;
-            width: 100%;
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             gap: 0.5rem;
-            transition: all 0.2s;
-            box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
             margin-top: 1rem;
+            transition: all 0.3s ease;
         }
-
         .btn-analyze-ai:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(79, 70, 229, 0.4);
+            box-shadow: 0 8px 25px rgba(217, 70, 239, 0.4);
         }
+
+        /* What-If Simulator */
+        .simulator-card {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            backdrop-filter: blur(10px);
+        }
+        .simulator-card h3 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #a78bfa;
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .sim-slider-group {
+            margin-bottom: 1rem;
+        }
+        .sim-slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+            font-weight: 500;
+        }
+        .sim-slider-label span {
+            color: #e2e8f0;
+            font-weight: 600;
+        }
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            border-radius: 4px;
+            background: rgba(99, 102, 241, 0.3);
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #6366f1;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+        }
+        .sim-result {
+            margin-top: 1.2rem;
+            padding: 1rem;
+            border-radius: 10px;
+            background: rgba(30, 41, 59, 0.8);
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.07);
+        }
+        .sim-result-score {
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+        .sim-result-category {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .sim-loading { opacity: 0.5; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
 
         .loading-spinner {
             display: inline-block;
@@ -660,7 +735,33 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                     Analyze With AI
                 </button>
-                
+
+                <!-- 5. What-If Scenario Simulator -->
+                <div class="simulator-card">
+                    <h3>🔬 What-If Scenario Simulator</h3>
+                    <div class="sim-slider-group">
+                        <div class="sim-slider-label">Income (₹) <span id="sim-income-val">{{ request.form.get('income', 150000) }}</span></div>
+                        <input type="range" id="sim-income" min="10000" max="1000000" step="10000" value="{{ request.form.get('income', 150000) }}">
+                    </div>
+                    <div class="sim-slider-group">
+                        <div class="sim-slider-label">Credit Amount (₹) <span id="sim-credit-val">{{ request.form.get('credit', 300000) }}</span></div>
+                        <input type="range" id="sim-credit" min="10000" max="2000000" step="10000" value="{{ request.form.get('credit', 300000) }}">
+                    </div>
+                    <div class="sim-slider-group">
+                        <div class="sim-slider-label">Age (years) <span id="sim-age-val">{{ request.form.get('age', 30) }}</span></div>
+                        <input type="range" id="sim-age" min="18" max="70" step="1" value="{{ request.form.get('age', 30) }}">
+                    </div>
+                    <div class="sim-slider-group">
+                        <div class="sim-slider-label">Days Employed <span id="sim-days-val">{{ request.form.get('days_employed', 365) }}</span></div>
+                        <input type="range" id="sim-days" min="0" max="10000" step="30" value="{{ request.form.get('days_employed', 365) }}">
+                    </div>
+                    <div class="sim-result">
+                        <div class="sim-result-score" id="sim-score">--</div>
+                        <div class="sim-result-category" id="sim-category">Adjust sliders to simulate</div>
+                        <div class="sim-loading" id="sim-loading" style="display:none">Recalculating...</div>
+                    </div>
+                </div>
+
             </div>
             {% endif %}
 
@@ -766,15 +867,80 @@
         };
 
         const analyzeBtn = document.getElementById('analyzeAiBtn');
-
         if (analyzeBtn) {
             analyzeBtn.addEventListener('click', () => {
-                // Store the prediction context in session storage
                 sessionStorage.setItem('pendingAiAnalysis', JSON.stringify(predictionData));
-                // Redirect to AI Assistant
                 window.location.href = '/chat';
             });
         }
+
+        // =============================================
+        // WHAT-IF SCENARIO SIMULATOR LOGIC
+        // =============================================
+        const simIncome = document.getElementById('sim-income');
+        const simCredit = document.getElementById('sim-credit');
+        const simAge = document.getElementById('sim-age');
+        const simDays = document.getElementById('sim-days');
+        const simScore = document.getElementById('sim-score');
+        const simCategory = document.getElementById('sim-category');
+        const simLoading = document.getElementById('sim-loading');
+
+        // Fixed values from original form submission
+        const fixedContractType = "{{ request.form.get('contract_type', 'Cash loans') }}";
+        const fixedIncomeType = "{{ request.form.get('income_type', 'Working') }}";
+        const fixedEducation = "{{ request.form.get('education', 'Higher education') }}";
+        const fixedOccupation = "{{ request.form.get('occupation_type', 'Managers') }}";
+
+        function formatNum(n) { return parseInt(n).toLocaleString('en-IN'); }
+
+        // Update label displays
+        simIncome.addEventListener('input', () => { document.getElementById('sim-income-val').textContent = '₹' + formatNum(simIncome.value); debounceSimulate(); });
+        simCredit.addEventListener('input', () => { document.getElementById('sim-credit-val').textContent = '₹' + formatNum(simCredit.value); debounceSimulate(); });
+        simAge.addEventListener('input', () => { document.getElementById('sim-age-val').textContent = simAge.value + ' yrs'; debounceSimulate(); });
+        simDays.addEventListener('input', () => { document.getElementById('sim-days-val').textContent = simDays.value + ' days'; debounceSimulate(); });
+
+        let debounceTimer;
+        function debounceSimulate() {
+            clearTimeout(debounceTimer);
+            simLoading.style.display = 'block';
+            debounceTimer = setTimeout(runSimulation, 400);
+        }
+
+        async function runSimulation() {
+            try {
+                const resp = await fetch('/api/simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contract_type: fixedContractType,
+                        age: simAge.value,
+                        credit: simCredit.value,
+                        income: simIncome.value,
+                        income_type: fixedIncomeType,
+                        education: fixedEducation,
+                        occupation_type: fixedOccupation,
+                        days_employed: simDays.value
+                    })
+                });
+                const d = await resp.json();
+                simLoading.style.display = 'none';
+                if (d.risk_score !== undefined) {
+                    simScore.textContent = d.risk_score.toFixed(1) + '%';
+                    simCategory.textContent = d.risk_category;
+                    const colorMap = { 'High Risk': '#ef4444', 'Medium Risk': '#f59e0b', 'Low Risk': '#10b981' };
+                    simScore.style.color = colorMap[d.risk_category] || '#ffffff';
+                    simCategory.style.color = colorMap[d.risk_category] || '#ffffff';
+                } else {
+                    simScore.textContent = 'Error';
+                    simCategory.textContent = d.error || 'Try again';
+                }
+            } catch(e) {
+                simLoading.style.display = 'none';
+                simScore.textContent = 'Error';
+            }
+        }
+        // Run simulation immediately on page load
+        runSimulation();
         {% endif %}
     </script>
 </body>

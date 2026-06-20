@@ -153,6 +153,22 @@
             position: relative;
             animation: pulseGlow 2s ease-in-out infinite alternate;
         }
+        .btn-clear-chat {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            pointer-events: all;
+            transition: all 0.2s ease;
+        }
+        .btn-clear-chat:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: #ef4444;
+        }
         
         .header h1::after {
             content: '';
@@ -365,7 +381,8 @@
     <!-- Main Content -->
     <div class="main-content">
         <header class="header">
-            <h1>AI Assistant</h1>
+            <h1>AI Assistant<span style="font-size:0.4em; vertical-align:super;">+</span></h1>
+            <button class="btn-clear-chat" id="clearChatBtn">🗑️ Clear Chat</button>
         </header>
 
         <div class="chat-container">
@@ -393,6 +410,21 @@
         const chatInput = document.getElementById('chat-input');
         const chatMessages = document.getElementById('chat-messages');
         const chatSubmit = document.getElementById('chat-submit');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+
+        // Clear chat button
+        if (clearChatBtn) {
+            clearChatBtn.addEventListener('click', async () => {
+                if (!confirm('Clear the entire conversation?')) return;
+                await fetch('/api/chat/clear', { method: 'POST' });
+                sessionStorage.removeItem('tempChatHistory');
+                chatMessages.innerHTML = `
+                    <div class="message-row ai">
+                        <div class="ai-avatar">✨</div>
+                        <div class="message-bubble">Chat cleared. How can I help you?</div>
+                    </div>`;
+            });
+        }
 
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();

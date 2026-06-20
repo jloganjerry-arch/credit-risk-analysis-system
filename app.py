@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 import pickle
 import numpy as np
 import pandas as pd
@@ -25,6 +25,7 @@ load_dotenv()
 # CREATE FLASK APP
 # =========================================
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'credit-risk-secret-key-2025')
 
 # =========================================
 # CREATE DATABASE
@@ -81,13 +82,13 @@ def chat():
     return render_template('chat.html')
 
 # =========================================
-# API: AI CHAT
+# API: AI CHAT (with Conversation Memory)
 # =========================================
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
     data = request.get_json()
     user_message = data.get('message', '')
-    
+
     system_prompt = """You are a specialized Credit Risk Analysis Assistant.
 You MUST ONLY answer questions related to:
 - Credit Risk Analysis
@@ -103,16 +104,98 @@ If a user asks an unrelated question (e.g. "Who won the IPL?", "Write a poem", "
 
 Maintain a professional, banking-style tone at all times.
 """
+    # Load existing conversation history from session
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+
+    # Append new user message
+    session['chat_history'].append({"role": "user", "content": user_message})
+
+    # Build full message list with system prompt
+    messages = [{"role": "system", "content": system_prompt}] + session['chat_history']
+
     try:
         client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ]
+            messages=messages
         )
-        return jsonify({"reply": response.choices[0].message.content})
+        reply = response.choices[0].message.content
+        # Save AI reply to history
+        session['chat_history'].append({"role": "assistant", "content": reply})
+        session.modified = True
+        return jsonify({"reply": reply})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# =========================================
+# API: CLEAR CHAT HISTORY
+# =========================================
+@app.route('/api/chat/clear', methods=['POST'])
+def clear_chat():
+    session.pop('chat_history', None)
+    return jsonify({"status": "cleared"})
+
+# =========================================
+# API: WHAT-IF SCENARIO SIMULATOR
+# =========================================
+@app.route('/api/simulate', methods=['POST'])
+def api_simulate():
+    if model is None:
+        return jsonify({"error": "Model not loaded"}), 500
+    try:
+        data = request.get_json()
+        raw_data = {
+            'NAME_CONTRACT_TYPE': data.get('contract_type', 'Cash loans'),
+            'DAYS_BIRTH': float(data.get('age', 30)) * 365,
+            'AMT_CREDIT': float(data.get('credit', 300000)),
+            'AMT_INCOME_TOTAL': float(data.get('income', 150000)),
+            'NAME_INCOME_TYPE': data.get('income_type', 'Working'),
+            'NAME_EDUCATION_TYPE': data.get('education', 'Higher education'),
+            'OCCUPATION_TYPE': data.get('occupation_type', 'Managers'),
+            'DAYS_EMPLOYED': float(data.get('days_employed', 365))
+        }
+        age = float(data.get('age', 30))
+        credit = raw_data['AMT_CREDIT']
+        income = raw_data['AMT_INCOME_TOTAL']
+        days_employed = raw_data['DAYS_EMPLOYED']
+
+        input_df = pd.DataFrame([raw_data])
+        input_df_imputed = pd.DataFrame(imputer.transform(input_df), columns=features)
+        input_df_imputed['DAYS_BIRTH'] = abs(input_df_imputed['DAYS_BIRTH'].astype(float)) / 365
+        input_df_imputed['DAYS_EMPLOYED'] = abs(input_df_imputed['DAYS_EMPLOYED'].astype(float))
+        for col in ['NAME_CONTRACT_TYPE', 'NAME_INCOME_TYPE', 'NAME_EDUCATION_TYPE', 'OCCUPATION_TYPE']:
+            val = str(input_df_imputed[col].iloc[0])
+            if val in label_encoders[col].classes_:
+                input_df_imputed[col] = label_encoders[col].transform([val])[0]
+            else:
+                input_df_imputed[col] = 0
+        for col in input_df_imputed.columns:
+            input_df_imputed[col] = input_df_imputed[col].astype(float)
+
+        prediction = model.predict(input_df_imputed)
+        if hasattr(model, 'predict_proba'):
+            probabilities = model.predict_proba(input_df_imputed)
+            risk_score = round(probabilities[0][1] * 100, 2)
+        else:
+            risk_score = 100.0 if prediction[0] == 1 else 0.0
+
+        # Apply rule-based overrides
+        if age < 25 and income < 30000 and credit > 250000:
+            risk_score = max(risk_score, 98.0)
+        elif days_employed < 180 and credit > 200000:
+            risk_score = max(risk_score, 95.0)
+        elif income > 0 and (credit / income) > 10:
+            risk_score = max(risk_score, 96.0)
+
+        if risk_score >= 70:
+            risk_category = "High Risk"
+        elif risk_score >= 40:
+            risk_category = "Medium Risk"
+        else:
+            risk_category = "Low Risk"
+
+        return jsonify({"risk_score": risk_score, "risk_category": risk_category})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
