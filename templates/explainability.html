@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Explainability — Transaction Risk Analyzer</title>
+    <meta name="description" content="SHAP-powered global model explainability dashboard for credit risk AI decisions.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0f1e;
+            --bg-secondary: #0d1526;
+            --bg-card: rgba(255,255,255,0.04);
+            --bg-card-hover: rgba(255,255,255,0.07);
+            --border: rgba(255,255,255,0.08);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --sidebar-w: 240px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; display: flex; }
+
+        /* ===== UNIFIED SIDEBAR ===== */
+        .sidebar {
+            width: 240px; background: #0d1526;
+            border-right: 1px solid rgba(255,255,255,0.08);
+            display: flex; flex-direction: column; padding: 20px 0;
+            position: fixed; height: 100vh; overflow-y: auto; z-index: 100;
+        }
+        .sidebar-logo { padding: 0 16px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 4px; }
+        .sidebar-logo span { font-size: 14px; font-weight: 700; color: #3b82f6; display: block; }
+        .sidebar-logo small { font-size: 11px; color: #64748b; margin-top: 2px; display: block; }
+        .sidebar-nav { padding: 6px 10px; flex: 1; }
+        .sidebar-section { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1.2px; padding: 10px 8px 4px; margin-top: 4px; }
+        .sidebar-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 7px; color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.18s; margin-bottom: 1px; }
+        .sidebar-item svg { width: 16px; height: 16px; stroke-width: 2px; flex-shrink: 0; }
+        .sidebar-item:hover { background: rgba(255,255,255,0.07); color: #f1f5f9; transform: none !important; }
+        .sidebar-item.active { background: rgba(59,130,246,0.15); color: #3b82f6; font-weight: 600; border-left: none !important; box-shadow: none !important; }
+        .sidebar-bottom { padding: 12px 10px; border-top: 1px solid rgba(255,255,255,0.08); }
+        .user-badge { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.04); margin-bottom: 4px; }
+        .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#3b82f6,#8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: white; flex-shrink: 0; }
+        .user-info-text p { font-size: 12px; font-weight: 600; line-height: 1.2; color: #f1f5f9; }
+        .user-info-text span { font-size: 10px; color: #64748b; text-transform: capitalize; }
+
+        /* ===== MAIN CONTENT ===== */
+        .main { margin-left: var(--sidebar-w); flex: 1; padding: 28px 32px; overflow-y: auto; }
+
+        .page-header { margin-bottom: 24px; }
+        .page-header h1 {
+            font-size: 26px; font-weight: 800;
+            background: linear-gradient(135deg, #f1f5f9, #94a3b8);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .page-header p { color: var(--text-secondary); margin-top: 4px; font-size: 13px; }
+
+        /* Info row */
+        .info-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; }
+        .info-box {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+            padding: 14px 16px; display: flex; align-items: flex-start; gap: 12px;
+        }
+        .info-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+        .info-box h4 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+        .info-box p { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+            overflow: hidden; margin-bottom: 18px;
+        }
+        .card-header {
+            padding: 14px 20px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .card-header-left h2 { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+        .card-header-left p { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+        .card-body { padding: 20px; }
+
+        /* ===== METRICS GRID ===== */
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+        .metric-item {
+            background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+            border-radius: 11px; padding: 14px 12px; text-align: center;
+            transition: all 0.2s;
+        }
+        .metric-item:hover { background: var(--bg-card-hover); border-color: rgba(59,130,246,0.25); transform: translateY(-2px); }
+        .metric-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-bottom: 6px; }
+        .metric-value { font-size: 26px; font-weight: 800; line-height: 1; }
+        .metric-bar { height: 3px; border-radius: 2px; background: var(--border); margin-top: 8px; overflow: hidden; }
+        .metric-bar-fill { height: 100%; border-radius: 2px; }
+
+        /* Confusion Matrix display */
+        .confusion-matrix-card {
+            background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+            border-radius: 11px; padding: 14px; text-align: center;
+        }
+        .cm-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-bottom: 10px; }
+        .cm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-width: 160px; margin: 0 auto; }
+        .cm-cell {
+            padding: 8px 4px; border-radius: 6px; font-size: 13px; font-weight: 700; text-align: center;
+        }
+        .cm-tp { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+        .cm-tn { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+        .cm-fp { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .cm-fn { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+        .cm-axis-label { font-size: 9px; color: var(--text-secondary); text-align: center; margin-top: 6px; }
+
+        /* Feature Importance Table */
+        .feat-table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-secondary); background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border); }
+        td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        .rank-badge { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700; background:rgba(59,130,246,0.12); color:#60a5fa; }
+        .impact-bar { height:5px; border-radius:3px; background:var(--border); width:100px; overflow:hidden; }
+        .impact-fill { height:100%; border-radius:3px; }
+
+        /* 2-col layout */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+        @media (max-width: 960px) { .grid-2 { grid-template-columns: 1fr; } .info-row { grid-template-columns: 1fr; } }
+
+        /* SHAP chart */
+        .shap-container { text-align: center; }
+        .shap-container img { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); }
+        .loading-spinner { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px; color:var(--text-secondary); }
+        .spinner { width:34px; height:34px; border:3px solid var(--border); border-top-color:var(--accent-blue); border-radius:50%; animation:spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-box { background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:10px; padding:14px; color:#f87171; font-size:13px; }
+        .shap-local img { max-width:100%; border-radius:10px; border:1px solid var(--border); }
+        .no-shap { padding:36px; text-align:center; color:var(--text-secondary); }
+        .no-shap .icon { font-size:30px; margin-bottom:10px; }
+
+        /* Btn */
+        .btn { padding:7px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:none; transition:all 0.2s; font-family:'Inter',sans-serif; }
+        .btn-primary { background:var(--accent-blue); color:white; }
+        .btn-primary:hover { background:#2563eb; transform:translateY(-1px); }
+        .btn-primary:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+
+        /* Feature desc */
+        .feat-desc { font-size:11px; color:var(--text-secondary); }
+
+        /* No metrics */
+        .no-metrics { text-align:center; color:var(--text-secondary); padding:20px 0; font-size:13px; }
+    </style>
+</head>
+<body>
+
+<!-- ===== UNIFIED SIDEBAR ===== -->
+<aside class="sidebar">
+    <div class="sidebar-logo" style="display: flex; align-items: center; gap: 8px; padding: 0 16px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 4px;">
+        <i data-lucide="landmark" style="width: 20px; height: 20px; stroke-width: 2.5px; color: #3b82f6; flex-shrink: 0;"></i>
+        <div style="display: flex; flex-direction: column;">
+            <span style="font-size: 14px; font-weight: 700; color: #3b82f6; display: block; line-height: 1.2;">RiskAnalyzer</span>
+            <small style="font-size: 11px; color: #64748b; display: block; margin-top: 1px;">Credit Risk Intelligence</small>
+        </div>
+    </div>
+    <nav class="sidebar-nav">
+        <div class="sidebar-section">Core</div>
+        <a href="/home" class="sidebar-item"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+        <a href="/history" class="sidebar-item"><i data-lucide="history"></i> History</a>
+        {% if current_user.role in ['admin', 'manager'] %}
+        <a href="/analysis" class="sidebar-item"><i data-lucide="bar-chart-3"></i> Analytics</a>
+        {% endif %}
+        <div class="sidebar-section">Tools</div>
+        <a href="/chat" class="sidebar-item"><i data-lucide="message-square-text"></i> AI Assistant</a>
+        <a href="/batch_predict" class="sidebar-item"><i data-lucide="upload-cloud"></i> Batch Upload</a>
+        <a href="/api_docs" class="sidebar-item"><i data-lucide="code-2"></i> API Docs</a>
+        {% if current_user.role in ['admin', 'manager'] %}
+        <div class="sidebar-section">Intelligence</div>
+        <a href="/explainability" class="sidebar-item active"><i data-lucide="brain"></i> Explainability</a>
+        {% endif %}
+        {% if current_user.role == 'admin' %}
+        <div class="sidebar-section">Admin</div>
+        <a href="/audit_log" class="sidebar-item"><i data-lucide="shield-check"></i> Audit Log</a>
+        <a href="/register" class="sidebar-item"><i data-lucide="users"></i> Manage Users</a>
+        {% endif %}
+    </nav>
+    <div class="sidebar-bottom">
+        <div class="user-badge">
+            <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
+            <div class="user-info-text"><p>{{ current_user.username }}</p><span>{{ current_user.role }}</span></div>
+        </div>
+        <a href="/logout" class="sidebar-item" style="margin-top:4px;"><i data-lucide="log-out"></i> Logout</a>
+    </div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<main class="main">
+    <div class="page-header">
+        <h1>🔬 Model Explainability</h1>
+        <p>SHAP-powered global feature importance, model performance metrics, and AI decision transparency.</p>
+    </div>
+
+    <!-- Info Row -->
+    <div class="info-row">
+        <div class="info-box">
+            <div class="info-icon">🧠</div>
+            <div>
+                <h4>What is SHAP?</h4>
+                <p>SHAP (SHapley Additive exPlanations) measures how much each feature contributes to each prediction using game theory principles.</p>
+            </div>
+        </div>
+        <div class="info-box">
+            <div class="info-icon">⚖️</div>
+            <div>
+                <h4>Regulatory Compliance</h4>
+                <p>GDPR Art.22 &amp; Basel III require explainable AI for automated credit decisions. SHAP values provide the required justification.</p>
+            </div>
+        </div>
+        <div class="info-box">
+            <div class="info-icon">🎯</div>
+            <div>
+                <h4>Ensemble Model</h4>
+                <p>Predictions average CatBoost + LightGBM + XGBoost probabilities. SHAP values use the primary CatBoost explainer.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Performance Metrics -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-left">
+                <h2>📈 Model Performance Metrics</h2>
+                <p>From latest training run — model_metrics.json</p>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if metrics %}
+            <div class="metrics-grid">
+
+                {% if metrics.accuracy is defined %}
+                <div class="metric-item">
+                    <div class="metric-label">Accuracy</div>
+                    <div class="metric-value" style="color:#3b82f6;">
+                        {{ "%.1f"|format((metrics.accuracy * 100) if metrics.accuracy <= 1 else metrics.accuracy) }}%
+                    </div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" style="width:{{ ((metrics.accuracy * 100) if metrics.accuracy <= 1 else metrics.accuracy)|round }}%; background:#3b82f6;"></div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if metrics.roc_auc is defined %}
+                <div class="metric-item">
+                    <div class="metric-label">ROC AUC</div>
+                    <div class="metric-value" style="color:#8b5cf6;">{{ "%.3f"|format(metrics.roc_auc) }}</div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" style="width:{{ (metrics.roc_auc * 100)|round }}%; background:#8b5cf6;"></div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if metrics.precision is defined %}
+                <div class="metric-item">
+                    <div class="metric-label">Precision</div>
+                    <div class="metric-value" style="color:#10b981;">
+                        {{ "%.1f"|format((metrics.precision * 100) if metrics.precision <= 1 else metrics.precision) }}%
+                    </div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" style="width:{{ ((metrics.precision * 100) if metrics.precision <= 1 else metrics.precision)|round }}%; background:#10b981;"></div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if metrics.recall is defined %}
+                <div class="metric-item">
+                    <div class="metric-label">Recall</div>
+                    <div class="metric-value" style="color:#f59e0b;">
+                        {{ "%.1f"|format((metrics.recall * 100) if metrics.recall <= 1 else metrics.recall) }}%
+                    </div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" style="width:{{ ((metrics.recall * 100) if metrics.recall <= 1 else metrics.recall)|round }}%; background:#f59e0b;"></div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if metrics.f1_score is defined %}
+                <div class="metric-item">
+                    <div class="metric-label">F1 Score</div>
+                    <div class="metric-value" style="color:#ef4444; font-size:20px;">{{ "%.4f"|format(metrics.f1_score) }}</div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" style="width:{{ (metrics.f1_score * 100)|round }}%; background:#ef4444;"></div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if metrics.best_model is defined %}
+                <div class="metric-item">
+                    <div class="metric-label">Best Model</div>
+                    <div class="metric-value" style="color:#06b6d4; font-size:16px; margin-top:4px;">{{ metrics.best_model }}</div>
+                    <div class="metric-bar" style="background:transparent;"></div>
+                </div>
+                {% endif %}
+
+                {% if metrics.confusion_matrix is defined %}
+                <div class="confusion-matrix-card" style="grid-column: span 2;">
+                    <div class="cm-label">Confusion Matrix</div>
+                    {% set cm = metrics.confusion_matrix %}
+                    <div class="cm-grid">
+                        <div class="cm-cell cm-tn" title="True Negative">{{ cm[0][0] }}<div style="font-size:9px;opacity:0.7;margin-top:2px;">TN</div></div>
+                        <div class="cm-cell cm-fp" title="False Positive">{{ cm[0][1] }}<div style="font-size:9px;opacity:0.7;margin-top:2px;">FP</div></div>
+                        <div class="cm-cell cm-fn" title="False Negative">{{ cm[1][0] }}<div style="font-size:9px;opacity:0.7;margin-top:2px;">FN</div></div>
+                        <div class="cm-cell cm-tp" title="True Positive">{{ cm[1][1] }}<div style="font-size:9px;opacity:0.7;margin-top:2px;">TP</div></div>
+                    </div>
+                    <div class="cm-axis-label">Predicted → / Actual ↓</div>
+                </div>
+                {% endif %}
+
+            </div>
+            {% else %}
+            <div class="no-metrics">⚠️ <code>model_metrics.json</code> not found. Run the training script to generate metrics.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Feature Importance from model_metrics.json -->
+    {% if metrics and metrics.features_sorted is defined and metrics.feature_importances is defined %}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-left">
+                <h2>📊 Static Feature Importance (From Training)</h2>
+                <p>CatBoost feature importances recorded during model training</p>
+            </div>
+        </div>
+        <div class="card-body feat-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Feature</th>
+                        <th>Importance Score</th>
+                        <th>Impact Bar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set max_imp = metrics.feature_importances | max %}
+                    {% for feat in metrics.features_sorted %}
+                    {% set imp = metrics.feature_importances[loop.index0] %}
+                    <tr>
+                        <td><span class="rank-badge">{{ loop.index }}</span></td>
+                        <td><strong>{{ feat }}</strong></td>
+                        <td><strong style="color:{% if imp > 0.15 %}#ef4444{% elif imp > 0.10 %}#f59e0b{% else %}#3b82f6{% endif %}">{{ "%.4f"|format(imp) }}</strong></td>
+                        <td>
+                            <div class="impact-bar">
+                                <div class="impact-fill" style="width:{{ (imp / max_imp * 100)|round }}%; background:{% if imp > 0.15 %}#ef4444{% elif imp > 0.10 %}#f59e0b{% else %}#3b82f6{% endif %};"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- SHAP Charts Row -->
+    <div class="grid-2">
+        <!-- Live SHAP Chart -->
+        <div class="card" style="margin-bottom:0;">
+            <div class="card-header">
+                <div class="card-header-left">
+                    <h2>🌍 Live SHAP Feature Importance</h2>
+                    <p>Mean |SHAP| computed on a sample — click Refresh to recompute</p>
+                </div>
+                <button class="btn btn-primary" onclick="loadSHAPChart()" id="refreshBtn">🔄 Refresh</button>
+            </div>
+            <div class="card-body shap-container" id="shapContainer">
+                <div class="loading-spinner" id="shapLoader">
+                    <div class="spinner"></div>
+                    <span>Computing SHAP values…</span>
+                </div>
+                <img id="shapImg" src="" alt="SHAP Feature Importance" style="display:none;" />
+                <div class="error-box" id="shapError" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Last Local SHAP Waterfall -->
+        <div class="card" style="margin-bottom:0;">
+            <div class="card-header">
+                <div class="card-header-left">
+                    <h2>🎯 Last Prediction Waterfall</h2>
+                    <p>SHAP waterfall for the most recent single prediction</p>
+                </div>
+            </div>
+            <div class="card-body shap-local" style="text-align:center;">
+                <img src="/static/local_shap.png?t={{ range(1,99999)|random }}"
+                     alt="Local SHAP Waterfall"
+                     style="max-width:100%; max-height:320px; border-radius:10px; border:1px solid var(--border);"
+                     onerror="this.outerHTML='<div class=no-shap><div class=icon>🔮</div><p>Run a prediction first to see the SHAP waterfall here.</p></div>'" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Live SHAP Feature Ranking (populated by JS) -->
+    <div class="card" id="featureTableCard" style="display:none; margin-top:18px;">
+        <div class="card-header">
+            <div class="card-header-left">
+                <h2>📋 Live SHAP Feature Ranking</h2>
+                <p>Sorted by mean absolute SHAP value from live computation</p>
+            </div>
+        </div>
+        <div class="card-body feat-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Feature</th>
+                        <th>Mean |SHAP|</th>
+                        <th>Impact Bar</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody id="featureTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<script>
+const featureDescriptions = {
+    'Credit Amount':   'Loan amount requested — higher amounts increase risk',
+    'Income':          'Total monthly income — key repayment capacity indicator',
+    'Employment Days': 'Length of employment — longer = more stable',
+    'Age':             'Applicant age — young + low income = higher risk',
+    'Occupation':      'Type of occupation — affects income stability',
+    'Income Type':     'Source of income (employed, self-employed, etc.)',
+    'Education':       'Education level — correlates with income stability',
+    'Contract Type':   'Cash loans vs revolving credit — different risk profiles'
+};
+const colorPalette = ['#ef4444','#f97316','#f59e0b','#10b981','#3b82f6','#8b5cf6','#06b6d4','#84cc16'];
+
+function loadSHAPChart() {
+    const loader   = document.getElementById('shapLoader');
+    const img      = document.getElementById('shapImg');
+    const errBox   = document.getElementById('shapError');
+    const btn      = document.getElementById('refreshBtn');
+    loader.style.display  = 'flex';
+    img.style.display     = 'none';
+    errBox.style.display  = 'none';
+    btn.disabled = true;
+    btn.textContent = '⏳ Loading…';
+    fetch('/api/shap_summary')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                errBox.textContent = '⚠️ ' + data.error;
+                errBox.style.display = 'block';
+            } else {
+                img.src = 'data:image/png;base64,' + data.chart;
+                img.style.display = 'block';
+                renderFeatureTable(data.features, data.values);
+                document.getElementById('featureTableCard').style.display = 'block';
+            }
+        })
+        .catch(err => {
+            errBox.textContent = '⚠️ Failed to load SHAP data: ' + err.message;
+            errBox.style.display = 'block';
+        })
+        .finally(() => {
+            loader.style.display = 'none';
+            btn.disabled = false;
+            btn.textContent = '🔄 Refresh';
+        });
+}
+
+function renderFeatureTable(features, values) {
+    const tbody  = document.getElementById('featureTableBody');
+    const maxVal = Math.max(...values);
+    const sorted = features.map((f,i) => ({f, v: values[i]})).sort((a,b) => b.v - a.v);
+    tbody.innerHTML = sorted.map((item, idx) => `
+        <tr>
+            <td><span class="rank-badge">${idx+1}</span></td>
+            <td><strong>${item.f}</strong></td>
+            <td><strong style="color:${colorPalette[idx % colorPalette.length]}">${item.v.toFixed(4)}</strong></td>
+            <td><div class="impact-bar"><div class="impact-fill" style="width:${(item.v/maxVal*100).toFixed(1)}%;background:${colorPalette[idx%colorPalette.length]};"></div></div></td>
+            <td class="feat-desc">${featureDescriptions[item.f] || '—'}</td>
+        </tr>
+    `).join('');
+}
+
+window.addEventListener('DOMContentLoaded', loadSHAPChart);
+</script>
+<script>
+    lucide.createIcons();
+</script>
+</body>
+</html>

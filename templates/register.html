@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register User - Risk Analysis</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
             --primary: #3b82f6;
@@ -21,21 +22,29 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
         body { background-color: var(--bg-body); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
 
+        /* ===== UNIFIED SIDEBAR ===== */
         .sidebar {
-            width: 260px; background-color: var(--sidebar-bg); display: flex; flex-direction: column;
-            padding: 2.5rem 0; flex-shrink: 0; box-shadow: 4px 0 15px rgba(0,0,0,0.5);
-            border-right: 1px solid var(--border-color); z-index: 50;
+            width: 240px; background: #0d1526;
+            border-right: 1px solid rgba(255,255,255,0.08);
+            display: flex; flex-direction: column; padding: 20px 0;
+            position: fixed; height: 100vh; overflow-y: auto; z-index: 100;
         }
-        .sidebar-logo { padding: 0 2rem; margin-bottom: 3.5rem; font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: 1px; text-transform: uppercase; }
-        .sidebar-menu { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; padding: 0 1rem; }
-        .sidebar-item { padding: 0.85rem 1.25rem; color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.95rem; font-weight: 500; transition: all 0.3s ease; border-radius: 8px; display: flex; align-items: center; }
-        .sidebar-item:hover { background-color: var(--sidebar-hover); color: white; transform: translateX(5px); }
-        .sidebar-item.active { background-color: rgba(59,130,246,0.1); color: var(--primary); border-left: 4px solid var(--primary); font-weight: 600; }
-        .sidebar-footer { padding: 0 1.5rem; margin-top: auto; display: flex; justify-content: center; }
-        .btn-exit { color: rgba(255,255,255,0.9); text-decoration: none; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 2rem; border-radius: 8px; transition: all 0.2s; font-size: 0.9rem; font-weight: 500; width: 100%; text-align: center; }
-        .btn-exit:hover { background-color: white; color: var(--primary); }
+        .sidebar-logo { padding: 0 16px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 4px; }
+        .sidebar-logo span { font-size: 14px; font-weight: 700; color: #3b82f6; display: block; }
+        .sidebar-logo small { font-size: 11px; color: #64748b; margin-top: 2px; display: block; }
+        .sidebar-nav { padding: 6px 10px; flex: 1; }
+        .sidebar-section { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1.2px; padding: 10px 8px 4px; margin-top: 4px; }
+        .sidebar-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 7px; color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.18s; margin-bottom: 1px; }
+        .sidebar-item svg { width: 16px; height: 16px; stroke-width: 2px; flex-shrink: 0; }
+        .sidebar-item:hover { background: rgba(255,255,255,0.07); color: #f1f5f9; transform: none !important; }
+        .sidebar-item.active { background: rgba(59,130,246,0.15); color: #3b82f6; font-weight: 600; border-left: none !important; box-shadow: none !important; }
+        .sidebar-bottom { padding: 12px 10px; border-top: 1px solid rgba(255,255,255,0.08); }
+        .user-badge { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.04); margin-bottom: 4px; }
+        .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#3b82f6,#8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: white; flex-shrink: 0; }
+        .user-info-text p { font-size: 12px; font-weight: 600; line-height: 1.2; color: #f1f5f9; }
+        .user-info-text span { font-size: 10px; color: #64748b; text-transform: capitalize; }
 
-        .main-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem; background: radial-gradient(circle at 50% -20%, #1e1b4b 0%, var(--bg-body) 70%); overflow-y: auto; }
+        .main-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem; margin-left: 240px; background: radial-gradient(circle at 50% -20%, #1e1b4b 0%, var(--bg-body) 70%); overflow-y: auto; }
 
         .register-card {
             background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px;
@@ -87,26 +96,44 @@
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-logo">Risk Analysis</div>
-        <div class="sidebar-menu">
-            <a href="/home" class="sidebar-item">Prediction Model</a>
-            <a href="/history" class="sidebar-item">History</a>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo" style="display: flex; align-items: center; gap: 8px; padding: 0 16px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 4px;">
+            <i data-lucide="landmark" style="width: 20px; height: 20px; stroke-width: 2.5px; color: #3b82f6; flex-shrink: 0;"></i>
+            <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 14px; font-weight: 700; color: #3b82f6; display: block; line-height: 1.2;">RiskAnalyzer</span>
+                <small style="font-size: 11px; color: #64748b; display: block; margin-top: 1px;">Credit Risk Intelligence</small>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section">Core</div>
+            <a href="/home" class="sidebar-item"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+            <a href="/history" class="sidebar-item"><i data-lucide="history"></i> History</a>
             {% if current_user.role in ['admin', 'manager'] %}
-            <a href="/analysis" class="sidebar-item">Data Analysis</a>
+            <a href="/analysis" class="sidebar-item"><i data-lucide="bar-chart-3"></i> Analytics</a>
             {% endif %}
-            <a href="/chat" class="sidebar-item">AI Assistant</a>
-            <a href="/batch_predict" class="sidebar-item">Batch Upload</a>
-            <a href="/api_docs" class="sidebar-item">API Docs</a>
+            <div class="sidebar-section">Tools</div>
+            <a href="/chat" class="sidebar-item"><i data-lucide="message-square-text"></i> AI Assistant</a>
+            <a href="/batch_predict" class="sidebar-item"><i data-lucide="upload-cloud"></i> Batch Upload</a>
+            <a href="/api_docs" class="sidebar-item"><i data-lucide="code-2"></i> API Docs</a>
+            {% if current_user.role in ['admin', 'manager'] %}
+            <div class="sidebar-section">Intelligence</div>
+            <a href="/explainability" class="sidebar-item"><i data-lucide="brain"></i> Explainability</a>
+            {% endif %}
             {% if current_user.role == 'admin' %}
-            <a href="/register" class="sidebar-item active">Manage Users</a>
+            <div class="sidebar-section">Admin</div>
+            <a href="/audit_log" class="sidebar-item"><i data-lucide="shield-check"></i> Audit Log</a>
+            <a href="/register" class="sidebar-item active"><i data-lucide="users"></i> Manage Users</a>
             {% endif %}
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-badge">
+                <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
+                <div class="user-info-text"><p>{{ current_user.username }}</p><span>{{ current_user.role }}</span></div>
+            </div>
+            <a href="/logout" class="sidebar-item" style="margin-top:4px;"><i data-lucide="log-out"></i> Logout</a>
         </div>
-        <div class="sidebar-footer" style="flex-direction: column; gap: 0.8rem;">
-            <div style="text-align:center; font-size:0.8rem; color: var(--text-muted);">👤 {{ current_user.username }} <span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:0.15rem 0.5rem; border-radius:4px; font-size:0.7rem; margin-left:4px;">{{ current_user.role }}</span></div>
-            <a href="/logout" class="btn-exit">Logout</a>
-        </div>
-    </div>
+    </aside>
 
     <div class="main-content">
         <div class="register-card">
@@ -144,5 +171,8 @@
             </form>
         </div>
     </div>
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>

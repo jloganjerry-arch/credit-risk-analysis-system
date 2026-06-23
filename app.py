@@ -92,6 +92,17 @@ def init_db():
                 role TEXT NOT NULL DEFAULT 'analyst'
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id SERIAL PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                user_id INTEGER,
+                username TEXT,
+                action TEXT NOT NULL,
+                details TEXT,
+                ip_address TEXT
+            )
+        ''')
     else:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS predictions (
@@ -113,6 +124,17 @@ def init_db():
                 role TEXT NOT NULL DEFAULT 'analyst'
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                user_id INTEGER,
+                username TEXT,
+                action TEXT NOT NULL,
+                details TEXT,
+                ip_address TEXT
+            )
+        ''')
 
     cursor.execute(format_query('SELECT COUNT(*) FROM users'))
     if cursor.fetchone()[0] == 0:
@@ -123,6 +145,39 @@ def init_db():
     conn.close()
 
 init_db()
+
+import base64
+import csv as csv_module
+
+# =========================================
+# AUDIT LOG HELPER
+# =========================================
+def log_audit(action, details=''):
+    """Insert a record into the audit_log table."""
+    try:
+        uid = current_user.id if current_user.is_authenticated else None
+        uname = current_user.username if current_user.is_authenticated else 'anonymous'
+        ip = request.remote_addr if request else '0.0.0.0'
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(format_query(
+            'INSERT INTO audit_log (timestamp, user_id, username, action, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)'),
+            (ts, uid, uname, action, details, ip))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[Audit Log Error] {e}")
+
+# =========================================
+# DRIFT MONITORING GLOBALS
+# =========================================
+drift_report = {
+    'last_checked': None,
+    'status': 'Not yet computed',
+    'psi_results': {},
+    'baseline_loaded': False
+}
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -385,12 +440,15 @@ def validate_login():
     if row and bcrypt.checkpw(password.encode('utf-8'), row[2].encode('utf-8')):
         user = User(row[0], row[1], row[3])
         login_user(user)
+        log_audit('LOGIN', f'User "{username}" logged in successfully (role: {row[3]})')
         return redirect(url_for('home'))
+    log_audit('LOGIN_FAILED', f'Failed login attempt for username "{username}"')
     return render_template('login.html', error='Invalid username or password.')
 
 @app.route('/logout')
 @login_required
 def logout():
+    log_audit('LOGOUT', f'User "{current_user.username}" logged out')
     logout_user()
     return redirect(url_for('login'))
 
@@ -416,6 +474,7 @@ def register():
                            (username, hashed, role))
             conn.commit()
             conn.close()
+            log_audit('REGISTER_USER', f'Admin created new user "{username}" with role "{role}"')
             return render_template('register.html', success=f'User "{username}" created successfully!')
         except Exception as e:
             err_str = str(e).lower()
@@ -572,7 +631,7 @@ def predict():
         'DAYS_EMPLOYED': 'Employment history'
     }
     
-    risk_reason_html = "<strong>💡 AI Explanation</strong><br><br>"
+    risk_reason_html = ""
     
     if rule_reason:
         risk_reason_html += f"This application was classified as HIGH RISK due to a critical rule violation:<br><br><ul><li>{rule_reason}</li></ul>"
@@ -617,6 +676,8 @@ def predict():
         tx_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    log_audit('PREDICT', f'Prediction #{tx_id}: {risk_category} ({risk_score}%) | Contract: {raw_data["NAME_CONTRACT_TYPE"]} | Credit: {credit} | Age: {age}')
 
     if risk_score >= 70:
         trigger_email_alert(tx_id, str(raw_data['NAME_CONTRACT_TYPE']), float(credit), float(age), risk_score, risk_category)
@@ -805,6 +866,7 @@ Use formal banking language. Do NOT use markdown or asterisks."""
 
     doc.build(story)
     buffer.seek(0)
+    log_audit('EXPORT_PDF', f'PDF report generated for Transaction #{tx_id} ({risk_category})')
     response = make_response(buffer.getvalue())
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = f'attachment; filename=risk_report_{tx_id}.pdf'
@@ -980,12 +1042,16 @@ def batch_predict():
 
     db_conn.commit()
     db_conn.close()
+    high_c = sum(1 for r in results if r.get('risk_category') == 'High Risk')
+    medium_c = sum(1 for r in results if r.get('risk_category') == 'Medium Risk')
+    low_c = sum(1 for r in results if r.get('risk_category') == 'Low Risk')
+    log_audit('BATCH_PREDICT', f'Batch prediction: {len(results)} rows processed | High: {high_c}, Medium: {medium_c}, Low: {low_c}')
     return render_template('batch_results.html', results=results,
                            username=current_user.username, role=current_user.role,
                            total=len(results),
-                           high=sum(1 for r in results if r.get('risk_category') == 'High Risk'),
-                           medium=sum(1 for r in results if r.get('risk_category') == 'Medium Risk'),
-                           low=sum(1 for r in results if r.get('risk_category') == 'Low Risk'))
+                           high=high_c,
+                           medium=medium_c,
+                           low=low_c)
 
 # =========================================
 # EXPORT EXCEL
@@ -1162,6 +1228,7 @@ def email_report(transaction_id):
         server.login(smtp_user, smtp_password)
         server.sendmail(smtp_user, target_email, msg.as_string())
         server.quit()
+        log_audit('EMAIL_REPORT', f'PDF report for Transaction #{transaction_id} emailed to {target_email}')
         return "Report emailed successfully!"
     except Exception as e:
         return f"Error sending email: {e}", 500
@@ -1357,8 +1424,266 @@ def api_predict():
     except Exception as e:
         return jsonify({'error': f'Prediction pipeline error: {e}'}), 500
 
+
+# =========================================
+# AUDIT LOG PAGE (Admin Only)
+# =========================================
+@app.route('/audit_log')
+@login_required
+def audit_log():
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    conn = get_db_connection()
+    cur = conn.cursor()
+    action_filter = request.args.get('action', '')
+    search_user = request.args.get('user', '')
+    if action_filter and search_user:
+        cur.execute(format_query('SELECT * FROM audit_log WHERE action=? AND username LIKE ? ORDER BY id DESC'),
+                    (action_filter, f'%{search_user}%'))
+    elif action_filter:
+        cur.execute(format_query('SELECT * FROM audit_log WHERE action=? ORDER BY id DESC'), (action_filter,))
+    elif search_user:
+        cur.execute(format_query('SELECT * FROM audit_log WHERE username LIKE ? ORDER BY id DESC'),
+                    (f'%{search_user}%',))
+    else:
+        cur.execute('SELECT * FROM audit_log ORDER BY id DESC')
+    rows = cur.fetchall()
+    cur.execute('SELECT DISTINCT action FROM audit_log ORDER BY action')
+    actions = [r[0] for r in cur.fetchall()]
+    conn.close()
+    return render_template('audit_log.html', logs=rows, actions=actions,
+                           selected_action=action_filter, search_user=search_user,
+                           username=current_user.username, role=current_user.role)
+
+@app.route('/export_audit_csv')
+@login_required
+def export_audit_csv():
+    if current_user.role != 'admin':
+        return redirect(url_for('home'))
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM audit_log ORDER BY id DESC')
+    rows = cur.fetchall()
+    conn.close()
+    output = io.StringIO()
+    writer = csv_module.writer(output)
+    writer.writerow(['ID', 'Timestamp', 'User ID', 'Username', 'Action', 'Details', 'IP Address'])
+    for r in rows:
+        writer.writerow(list(r))
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = 'attachment; filename=audit_log.csv'
+    log_audit('EXPORT_AUDIT', 'Exported full audit log to CSV')
+    return response
+
+# =========================================
+# EXPLAINABILITY DASHBOARD
+# =========================================
+@app.route('/explainability')
+@login_required
+def explainability():
+    if current_user.role not in ['admin', 'manager']:
+        return redirect(url_for('home'))
+    try:
+        with open('model_metrics.json', 'r') as f:
+            metrics = json.load(f)
+    except Exception:
+        metrics = None
+    return render_template('explainability.html',
+                           metrics=metrics,
+                           username=current_user.username,
+                           role=current_user.role)
+
+@app.route('/api/shap_summary')
+@login_required
+def api_shap_summary():
+    """Generate global SHAP summary bar chart and return as base64 PNG."""
+    if explainer is None:
+        return jsonify({'error': 'SHAP explainer not loaded'}), 500
+    try:
+        # Use a small synthetic sample that spans the feature range
+        sample_data = {
+            'NAME_CONTRACT_TYPE': [0, 1, 0, 1, 0],
+            'DAYS_BIRTH': [35, 25, 50, 42, 30],
+            'AMT_CREDIT': [200000, 500000, 150000, 350000, 450000],
+            'AMT_INCOME_TOTAL': [120000, 60000, 200000, 90000, 180000],
+            'NAME_INCOME_TYPE': [0, 1, 2, 0, 1],
+            'NAME_EDUCATION_TYPE': [0, 1, 2, 1, 0],
+            'OCCUPATION_TYPE': [0, 1, 2, 3, 0],
+            'DAYS_EMPLOYED': [1200, 300, 2000, 800, 500]
+        }
+        sample_df = pd.DataFrame(sample_data)
+        shap_values = explainer.shap_values(sample_df)
+        if isinstance(shap_values, list):
+            shap_values = shap_values[1]
+
+        # Mean absolute SHAP per feature
+        mean_shap = np.abs(shap_values).mean(axis=0)
+        feat_labels = ['Contract Type', 'Age', 'Credit Amount', 'Income',
+                       'Income Type', 'Education', 'Occupation', 'Employment Days']
+        sorted_idx = np.argsort(mean_shap)
+        sorted_shap = mean_shap[sorted_idx]
+        sorted_labels = [feat_labels[i] for i in sorted_idx]
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        colors_bar = ['#ef4444' if v > 0.05 else '#3b82f6' for v in sorted_shap]
+        bars = ax.barh(sorted_labels, sorted_shap, color=colors_bar, edgecolor='none')
+        ax.set_xlabel('Mean |SHAP Value| (Impact on Risk Score)', fontsize=10, color='#374151')
+        ax.set_title('Global Feature Importance (SHAP)', fontsize=13, fontweight='bold', color='#1e3a8a', pad=12)
+        ax.set_facecolor('#f8fafc')
+        fig.patch.set_facecolor('#ffffff')
+        ax.tick_params(colors='#374151')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        for bar, val in zip(bars, sorted_shap):
+            ax.text(val + 0.001, bar.get_y() + bar.get_height()/2,
+                    f'{val:.4f}', va='center', ha='left', fontsize=9, color='#374151')
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=130, bbox_inches='tight')
+        plt.close()
+        buf.seek(0)
+        img_b64 = base64.b64encode(buf.read()).decode('utf-8')
+        return jsonify({'chart': img_b64, 'features': sorted_labels, 'values': sorted_shap.tolist()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/model_metrics')
+@login_required
+def api_model_metrics():
+    """Return model performance metrics from model_metrics.json."""
+    try:
+        with open('model_metrics.json', 'r') as f:
+            metrics = json.load(f)
+        return jsonify(metrics)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# =========================================
+# DRIFT MONITORING
+# =========================================
+def compute_psi(expected, actual, buckets=10):
+    """Compute Population Stability Index between two distributions."""
+    breakpoints = np.linspace(0, 1, buckets + 1)
+    expected_scaled = (expected - expected.min()) / (expected.max() - expected.min() + 1e-9)
+    actual_scaled = (actual - actual.min()) / (actual.max() - actual.min() + 1e-9)
+    expected_percents = np.histogram(expected_scaled, breakpoints)[0] / len(expected_scaled) + 1e-4
+    actual_percents = np.histogram(actual_scaled, breakpoints)[0] / len(actual_scaled) + 1e-4
+    psi = np.sum((actual_percents - expected_percents) * np.log(actual_percents / expected_percents))
+    return round(float(psi), 4)
+
+def run_drift_monitor():
+    """Background thread: checks feature drift every 30 minutes."""
+    import time
+    global drift_report
+    while True:
+        time.sleep(1800)  # 30 minutes
+        try:
+            if not os.path.exists('drift_baseline.json'):
+                drift_report['status'] = 'No baseline computed yet. Visit /api/compute_baseline.'
+                drift_report['last_checked'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                continue
+            with open('drift_baseline.json', 'r') as f:
+                baseline = json.load(f)
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute('SELECT credit_amount, age FROM predictions ORDER BY id DESC LIMIT 100')
+            rows = cur.fetchall()
+            conn.close()
+            if len(rows) < 10:
+                drift_report['status'] = 'Insufficient data (need ≥10 recent predictions)'
+                drift_report['last_checked'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                continue
+            recent_credit = np.array([r[0] for r in rows], dtype=float)
+            recent_age = np.array([r[1] for r in rows], dtype=float)
+            baseline_credit = np.array(baseline.get('credit_baseline', [200000]*50), dtype=float)
+            baseline_age = np.array(baseline.get('age_baseline', [35]*50), dtype=float)
+            psi_credit = compute_psi(baseline_credit, recent_credit)
+            psi_age = compute_psi(baseline_age, recent_age)
+            psi_results = {'Credit Amount': psi_credit, 'Age': psi_age}
+            max_psi = max(psi_credit, psi_age)
+            if max_psi >= 0.2:
+                status = 'DRIFTED'
+                trigger_email_alert_drift(psi_results)
+            elif max_psi >= 0.1:
+                status = 'WARNING'
+            else:
+                status = 'STABLE'
+            drift_report = {
+                'last_checked': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'status': status,
+                'psi_results': psi_results,
+                'baseline_loaded': True
+            }
+        except Exception as e:
+            drift_report['last_checked'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            drift_report['status'] = f'Error: {e}'
+
+def trigger_email_alert_drift(psi_results):
+    """Send admin alert when model drift is detected."""
+    smtp_server = os.environ.get('SMTP_SERVER')
+    smtp_port = os.environ.get('SMTP_PORT')
+    smtp_user = os.environ.get('SMTP_USER')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+    admin_email = os.environ.get('ADMIN_EMAIL')
+    if not all([smtp_server, smtp_port, smtp_user, smtp_password, admin_email]):
+        return
+    def _send():
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = smtp_user
+            msg['To'] = admin_email
+            msg['Subject'] = '⚠️ MODEL DRIFT DETECTED — Credit Risk Analyzer'
+            body = 'Model drift has been detected in the Credit Risk Analyzer.\n\nPSI Values:\n'
+            for feat, psi in psi_results.items():
+                body += f'  {feat}: PSI={psi} ({"🚨 DRIFTED" if psi >= 0.2 else "⚠️ WARNING"})\n'
+            body += '\nPlease review the model performance and consider retraining.\n'
+            msg.attach(MIMEText(body, 'plain'))
+            server = smtplib.SMTP(smtp_server, int(smtp_port))
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_user, admin_email, msg.as_string())
+            server.quit()
+        except Exception as e:
+            print(f'[Drift Alert Email Error] {e}')
+    threading.Thread(target=_send, daemon=True).start()
+
+@app.route('/api/drift_status')
+@login_required
+def api_drift_status():
+    return jsonify(drift_report)
+
+@app.route('/api/compute_baseline')
+@login_required
+def api_compute_baseline():
+    """One-time: compute and save drift baseline from current DB records (admin only)."""
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT credit_amount, age FROM predictions ORDER BY id ASC LIMIT 200')
+        rows = cur.fetchall()
+        conn.close()
+        if len(rows) < 5:
+            return jsonify({'error': 'Not enough prediction history to compute baseline (need ≥5 records)'}), 400
+        credit_vals = [float(r[0]) for r in rows]
+        age_vals = [float(r[1]) for r in rows]
+        baseline = {'credit_baseline': credit_vals, 'age_baseline': age_vals,
+                    'computed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        with open('drift_baseline.json', 'w') as f:
+            json.dump(baseline, f)
+        log_audit('COMPUTE_BASELINE', f'Drift baseline computed from {len(rows)} records')
+        return jsonify({'success': True, 'records_used': len(rows),
+                        'message': 'Drift baseline saved to drift_baseline.json'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # =========================================
 # RUN FLASK APP
 # =========================================
 if __name__ == "__main__":
+    # Start background drift monitoring thread
+    drift_thread = threading.Thread(target=run_drift_monitor, daemon=True)
+    drift_thread.start()
     app.run(debug=True)

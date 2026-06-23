@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Risk Analysis Scanner</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
             --primary: #3b82f6;
@@ -37,65 +38,57 @@
             overflow: hidden;
         }
 
-        /* Sidebar Styles */
+        /* ===== UNIFIED SIDEBAR ===== */
         .sidebar {
-            width: 260px;
-            background-color: var(--sidebar-bg);
-            color: white;
+            width: 240px;
+            background: #0d1526;
+            border-right: 1px solid rgba(255,255,255,0.08);
             display: flex;
             flex-direction: column;
-            padding: 2.5rem 0;
+            padding: 20px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 100;
             flex-shrink: 0;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
-            border-right: 1px solid var(--border-color);
-            z-index: 50;
         }
-
         .sidebar-logo {
-            padding: 0 2rem;
-            margin-bottom: 3.5rem;
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: #ffffff;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            display: inline-block;
-            animation: floatLogo 4s ease-in-out infinite;
+            padding: 0 16px 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 4px;
         }
-
-        .sidebar-menu {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            flex: 1;
-            padding: 0 1rem;
+        .sidebar-logo span { font-size: 14px; font-weight: 700; color: #3b82f6; letter-spacing: 0.3px; display: block; }
+        .sidebar-logo small { font-size: 11px; color: #64748b; margin-top: 2px; display: block; }
+        .sidebar-nav { padding: 6px 10px; flex: 1; }
+        .sidebar-section {
+            font-size: 10px; font-weight: 700; color: #64748b;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            padding: 10px 8px 4px; margin-top: 4px;
         }
-
         .sidebar-item {
-            padding: 0.85rem 1.25rem;
-            color: rgba(255, 255, 255, 0.8);
-            text-decoration: none;
-            font-size: 0.95rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 10px; border-radius: 7px;
+            color: #94a3b8; text-decoration: none;
+            font-size: 13px; font-weight: 500;
+            transition: all 0.18s; margin-bottom: 1px;
         }
-
-        .sidebar-item:hover {
-            background-color: var(--sidebar-hover);
-            color: white;
-            transform: translateX(5px);
+        .sidebar-item svg { width: 16px; height: 16px; stroke-width: 2px; flex-shrink: 0; }
+        .sidebar-item:hover { background: rgba(255,255,255,0.07); color: #f1f5f9; transform: none; }
+        .sidebar-item.active { background: rgba(59,130,246,0.15); color: #3b82f6; font-weight: 600; border-left: none; box-shadow: none; }
+        .sidebar-bottom { padding: 12px 10px; border-top: 1px solid rgba(255,255,255,0.08); }
+        .user-badge {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 10px; border-radius: 8px;
+            background: rgba(255,255,255,0.04); margin-bottom: 4px;
         }
-
-        .sidebar-item.active {
-            background-color: rgba(59, 130, 246, 0.1);
-            color: var(--primary);
-            border-left: 4px solid var(--primary);
-            box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.05);
-            font-weight: 600;
+        .user-avatar {
+            width: 30px; height: 30px; border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; color: white; flex-shrink: 0;
         }
+        .user-info-text p { font-size: 12px; font-weight: 600; line-height: 1.2; color: #f1f5f9; }
+        .user-info-text span { font-size: 10px; color: #64748b; text-transform: capitalize; }
 
         .sidebar-footer {
             padding: 0 1.5rem;
@@ -460,10 +453,11 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            overflow-y: auto; /* Changed to allow scrolling for the whole panel */
+            overflow-y: auto;
             padding: 2.5rem 3.5rem;
             background-color: var(--bg-body);
             position: relative;
+            margin-left: 240px;
         }
 
         .header {
@@ -675,142 +669,534 @@
             border-color: #a7f3d0;
         }
 
-        /* NEW LAYOUT: Flex container for side-panel and form */
+        /* NEW LAYOUT: Balanced Double-Column Dashboard Grid */
         .analyzer-layout {
             display: flex;
             gap: 2rem;
             align-items: flex-start;
             max-width: 1400px;
             margin: 0 auto;
+            width: 100%;
         }
 
-        /* The new left side panel */
-        .side-panel {
-            flex: 0 0 35%; /* Takes up 35% of the space */
+        /* Input section on left */
+        .inputs-column {
+            flex: 1;
+            max-width: 950px;
+            margin: 0 auto;
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
+            width: 100%;
         }
 
-        /* The form container */
-        .form-panel {
-            flex: 1; /* Takes up the remaining space */
+        /* Results dashboard on right */
+        .results-column {
+            flex: 1.8;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            width: 100%;
         }
 
-        /* The Premium Dark Card for Risk Score */
-        .risk-score-card {
-            background: #111827;
-            border-radius: 12px;
-            padding: 2.5rem 2rem;
-            text-align: center;
-            color: white;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            border: 1px solid rgba(255,255,255,0.05);
+        /* In result active mode, scale down inputs into a sidebar */
+        .analyzer-layout.has-results .inputs-column {
+            flex: 0 0 35%;
+            max-width: 450px;
+            margin: 0;
         }
 
-        .risk-score-card h3 {
-            font-size: 0.9rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: #9ca3af;
-            margin-bottom: 1rem;
-            font-weight: 600;
+        /* Compact form styling for active results mode */
+        .analyzer-layout.has-results .inputs-column .card {
+            padding: 1.5rem 1.8rem;
         }
 
-        .risk-score-value {
-            font-size: 4.5rem;
-            font-weight: 800;
-            line-height: 1;
-            margin-bottom: 2rem;
-            font-family: 'Georgia', serif; /* Matching the elegant serif in the image */
+        .analyzer-layout.has-results .inputs-column .form-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
         }
 
-        .risk-divider {
-            height: 1px;
-            background: rgba(255,255,255,0.1);
-            margin: 2rem auto;
-            width: 80%;
+        .analyzer-layout.has-results .inputs-column .btn-submit {
+            padding: 0.85rem 1.5rem;
+            font-size: 0.95rem;
+            margin-top: 1rem;
         }
 
-        .risk-category-label {
-            font-size: 0.9rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: #9ca3af;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
+        /* Risk Overview Panel Card */
+        .risk-overview-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 2rem;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
-        .risk-category-value {
-            font-size: 2rem;
+        .overview-left {
+            display: flex;
+            align-items: center;
+            gap: 1.8rem;
+        }
+
+        .overview-status {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .overview-label {
+            font-size: 0.72rem;
             font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .overview-val {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin: 0.1rem 0 0.3rem 0;
+            line-height: 1.1;
+        }
+
+        .overview-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .overview-right {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            width: 320px;
+            flex-shrink: 0;
+        }
+
+        .action-row {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn-action {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.85rem 1.2rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-ai {
+            background: linear-gradient(135deg, #6366f1, #d946ef);
+            width: 100%;
+        }
+        .btn-ai:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(217, 70, 239, 0.35);
+        }
+
+        .btn-pdf {
+            background: linear-gradient(135deg, #10b981, #059669);
+            flex: 1;
+        }
+        .btn-pdf:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+        }
+
+        .btn-email {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            flex: 1;
+        }
+        .btn-email:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+        }
+
+        /* Radial gauge component styles */
+        .radial-gauge {
+            position: relative;
+            width: 110px;
+            height: 110px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .radial-gauge svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+        .radial-gauge circle {
+            fill: transparent;
+            stroke-width: 10px;
+        }
+        .radial-gauge .gauge-bg {
+            stroke: rgba(255, 255, 255, 0.05);
+        }
+        .radial-gauge .gauge-fill {
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .radial-gauge .gauge-fill.low {
+            stroke: var(--success);
+            filter: drop-shadow(0 0 6px var(--success));
+        }
+        .radial-gauge .gauge-fill.medium {
+            stroke: var(--warning);
+            filter: drop-shadow(0 0 6px var(--warning));
+        }
+        .radial-gauge .gauge-fill.high {
+            stroke: var(--danger);
+            filter: drop-shadow(0 0 6px var(--danger));
+        }
+        .radial-gauge .gauge-text {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .radial-gauge .gauge-score {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--text-main);
+            line-height: 1;
+        }
+
+        /* Details side-by-side grid */
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 1.5rem;
+        }
+
+        .details-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.8rem;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .details-card h3 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 1.2rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 0.75rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .details-card h3 svg {
+            color: var(--primary);
+            width: 18px;
+            height: 18px;
+            stroke-width: 2.2px;
+        }
+
+        .shap-plot-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.3);
+            border-radius: 10px;
+            padding: 0.75rem;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .ai-reason-content {
+            font-size: 0.92rem;
+            color: var(--text-main);
+            line-height: 1.65;
+        }
+        .ai-reason-content ul {
+            margin-top: 0.75rem;
+            margin-bottom: 0.75rem;
+            padding-left: 1.2rem;
+        }
+        .ai-reason-content li {
+            margin-bottom: 0.5rem;
+        }
+        .ai-reason-content strong {
+            color: #f1f5f9;
         }
 
         /* Dynamic Colors */
-        .color-low { color: #10b981; }
-        .color-medium { color: #f59e0b; }
-        .color-high { color: #ef4444; }
+        .color-low { color: var(--success); }
+        .color-medium { color: var(--warning); }
+        .color-high { color: var(--danger); }
+        
+        :root {
+            --warning: #f59e0b;
+        }
 
-        .shap-card {
+        /* Staggered Entrance Animations */
+        @keyframes resultEntrance {
+            0% {
+                opacity: 0;
+                transform: translateY(24px) scale(0.985);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .results-column > * {
+            animation: resultEntrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .results-column .risk-overview-card {
+            animation-delay: 0s;
+        }
+
+        .results-column .details-grid {
+            animation-delay: 0.08s;
+        }
+
+        .results-column .simulator-card {
+            animation-delay: 0.16s;
+        }
+
+        /* Two-Column Simulator Layout */
+        .sim-sliders-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .sim-result-row {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .simulator-card .sim-result {
+            width: 100%;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+
+        /* SHAP Interactive Hover Zoom Visual Cue */
+        .shap-plot-container {
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+        }
+
+        .shap-plot-container:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+
+        .shap-plot-container::after {
+            content: "🔍 Click to expand";
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(15, 23, 42, 0.85);
+            color: #e2e8f0;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: all 0.25s ease;
+            pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .shap-plot-container:hover::after {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* SHAP Graph Zoom Overlay */
+        .shap-zoom-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(10, 15, 30, 0.94);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .shap-zoom-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .zoom-header {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1.5rem 3rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             background: rgba(15, 23, 42, 0.6);
+            flex-shrink: 0;
+        }
+
+        .zoom-header h2 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .zoom-back-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .zoom-back-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateX(-4px);
+        }
+
+        .zoom-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .zoom-body img {
+            max-width: 92%;
+            max-height: 82vh;
+            object-fit: contain;
             border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border-color);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transform: scale(0.92);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        .shap-card h3 {
-            font-size: 1.2rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-            color: var(--text-main);
-            font-family: 'Georgia', serif;
+        .shap-zoom-overlay.active .zoom-body img {
+            transform: scale(1);
         }
 
-        .ai-reason-box {
-            background: rgba(15, 23, 42, 0.6);
-            border-left: 4px solid var(--primary);
-            padding: 1.25rem;
-            border-radius: 0 8px 8px 0;
-            font-size: 0.95rem;
-            color: var(--text-main);
-            line-height: 1.6;
+        /* Responsive Dashboard styles */
+        @media (max-width: 1150px) {
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+            .risk-overview-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .overview-right {
+                width: 100%;
+            }
+            .sim-sliders-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
         }
-        
-        .ai-reason-box ul {
-            margin-top: 0.5rem;
-            margin-bottom: 0.5rem;
-            padding-left: 1.5rem;
-        }
-        
-        .ai-reason-box li {
-            margin-bottom: 0.25rem;
+
+        @media (max-width: 1024px) {
+            .analyzer-layout.has-results {
+                flex-direction: column;
+            }
+            .analyzer-layout.has-results .inputs-column {
+                flex: 1;
+                max-width: 100%;
+            }
         }
     </style>
 </head>
 <body>
 
     <!-- Sidebar -->
-    <div class="sidebar">
-        <div class="sidebar-logo">Risk Analysis</div>
-        <div class="sidebar-menu">
-            <a href="/home" class="sidebar-item active">Prediction Model</a>
-            <a href="/history" class="sidebar-item">History</a>
-            {% if role in ['admin', 'manager'] %}
-            <a href="/analysis" class="sidebar-item">Data Analysis</a>
-            {% endif %}
-            <a href="/chat" class="sidebar-item">AI Assistant</a>
-            <a href="/batch_predict" class="sidebar-item">Batch Upload</a>
-            <a href="/api_docs" class="sidebar-item">API Docs</a>
-            {% if role == 'admin' %}
-            <a href="/register" class="sidebar-item">Manage Users</a>
-            {% endif %}
+    <aside class="sidebar">
+        <div class="sidebar-logo" style="display: flex; align-items: center; gap: 8px; padding: 0 16px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 4px;">
+            <i data-lucide="landmark" style="width: 20px; height: 20px; stroke-width: 2.5px; color: #3b82f6; flex-shrink: 0;"></i>
+            <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 14px; font-weight: 700; color: #3b82f6; display: block; line-height: 1.2;">RiskAnalyzer</span>
+                <small style="font-size: 11px; color: #64748b; display: block; margin-top: 1px;">Credit Risk Intelligence</small>
+            </div>
         </div>
-        <div class="sidebar-footer" style="flex-direction: column; gap: 0.8rem;">
-            <div style="text-align:center; font-size:0.8rem; color: var(--text-muted);">👤 {{ username }} <span style="background:rgba(59,130,246,0.2); color:#60a5fa; padding:0.15rem 0.5rem; border-radius:4px; font-size:0.7rem; margin-left:4px;">{{ role }}</span></div>
-            <a href="/logout" class="btn-exit">Logout</a>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section">Core</div>
+            <a href="/home" class="sidebar-item active"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+            <a href="/history" class="sidebar-item"><i data-lucide="history"></i> History</a>
+            {% if current_user.role in ['admin', 'manager'] %}
+            <a href="/analysis" class="sidebar-item"><i data-lucide="bar-chart-3"></i> Analytics</a>
+            {% endif %}
+            <div class="sidebar-section">Tools</div>
+            <a href="/chat" class="sidebar-item"><i data-lucide="message-square-text"></i> AI Assistant</a>
+            <a href="/batch_predict" class="sidebar-item"><i data-lucide="upload-cloud"></i> Batch Upload</a>
+            <a href="/api_docs" class="sidebar-item"><i data-lucide="code-2"></i> API Docs</a>
+            {% if current_user.role in ['admin', 'manager'] %}
+            <div class="sidebar-section">Intelligence</div>
+            <a href="/explainability" class="sidebar-item"><i data-lucide="brain"></i> Explainability</a>
+            {% endif %}
+            {% if current_user.role == 'admin' %}
+            <div class="sidebar-section">Admin</div>
+            <a href="/audit_log" class="sidebar-item"><i data-lucide="shield-check"></i> Audit Log</a>
+            <a href="/register" class="sidebar-item"><i data-lucide="users"></i> Manage Users</a>
+            {% endif %}
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-badge">
+                <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
+                <div class="user-info-text">
+                    <p>{{ current_user.username }}</p>
+                    <span>{{ current_user.role }}</span>
+                </div>
+            </div>
+            <a href="/logout" class="sidebar-item" style="margin-top:4px;"><i data-lucide="log-out"></i> Logout</a>
         </div>
-    </div>
+    </aside>
 
     <!-- Main Content -->
     <div class="main-content">
@@ -819,173 +1205,191 @@
             
         </header>
 
-        <div class="analyzer-layout">
+        <div class="analyzer-layout {% if show_results %}has-results{% endif %}">
             
-            {% if show_results %}
-            <!-- Left Side Panel (Results & SHAP) -->
-            <div class="side-panel">
+            <!-- Left inputs panel wrapper -->
+            <div class="inputs-column">
                 
-                <!-- 1. The Dark Premium Score Card -->
-                <div class="risk-score-card">
-                    <h3>RISK SCORE</h3>
-                    <div class="risk-score-value 
-                        {% if 'Low Risk' in prediction_text %}color-low
-                        {% elif 'Medium Risk' in prediction_text %}color-medium
-                        {% else %}color-high{% endif %}">
-                        {{ risk_score }}
+                <!-- The Form -->
+                <div class="card" style="max-width: 100%; margin: 0;">
+                    <form action="/predict" method="post">
+                        <div class="form-grid">
+                            
+                            <div class="input-group">
+                                <label for="contract_type">Contract Type</label>
+                                <select name="contract_type" id="contract_type" required>
+                                    <option value="cash" {% if request.form.get('contract_type') == 'cash' %}selected{% endif %}>Cash loans</option>
+                                    <option value="revolving" {% if request.form.get('contract_type') == 'revolving' %}selected{% endif %}>Revolving loans</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="age">Age</label>
+                                <input type="number" name="age" min="18" max="100" value="{{ request.form.get('age', '') }}" required>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="credit">Credit Amount</label>
+                                <input type="number" step="0.01" name="credit" id="credit" placeholder="e.g. 500000" value="{{ request.form.get('credit', '') }}" required>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="income">Total Income</label>
+                                <input type="number" step="0.01" name="income" id="income" placeholder="e.g. 150000" value="{{ request.form.get('income', '') }}" required>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="income_type">Income Type</label>
+                                <select name="income_type" id="income_type" required>
+                                    <option value="working" {% if request.form.get('income_type') == 'working' %}selected{% endif %}>Working</option>
+                                    <option value="state servant" {% if request.form.get('income_type') == 'state servant' %}selected{% endif %}>State servant</option>
+                                    <option value="commercial associate" {% if request.form.get('income_type') == 'commercial associate' %}selected{% endif %}>Commercial associate</option>
+                                    <option value="pensioner" {% if request.form.get('income_type') == 'pensioner' %}selected{% endif %}>Pensioner</option>
+                                    <option value="student" {% if request.form.get('income_type') == 'student' %}selected{% endif %}>Student</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="education">Education Type</label>
+                                <select name="education" id="education" required>
+                                    <option value="higher education" {% if request.form.get('education') == 'higher education' %}selected{% endif %}>Higher education</option>
+                                    <option value="secondary" {% if request.form.get('education') == 'secondary' %}selected{% endif %}>Secondary / secondary special</option>
+                                    <option value="incomplete higher" {% if request.form.get('education') == 'incomplete higher' %}selected{% endif %}>Incomplete higher</option>
+                                    <option value="lower secondary" {% if request.form.get('education') == 'lower secondary' %}selected{% endif %}>Lower secondary</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="occupation_type">Occupation Type</label>
+                                <select name="occupation_type" id="occupation_type" required>
+                                    <option value="Managers" {% if request.form.get('occupation_type') == 'Managers' %}selected{% endif %}>Managers</option>
+                                    <option value="IT Staff" {% if request.form.get('occupation_type') == 'IT Staff' %}selected{% endif %}>IT Staff</option>
+                                    <option value="Accountants" {% if request.form.get('occupation_type') == 'Accountants' %}selected{% endif %}>Accountants</option>
+                                    <option value="Laborers" {% if request.form.get('occupation_type') == 'Laborers' %}selected{% endif %}>Laborers</option>
+                                    <option value="Drivers" {% if request.form.get('occupation_type') == 'Drivers' %}selected{% endif %}>Drivers</option>
+                                    <option value="Students" {% if request.form.get('occupation_type') == 'Students' %}selected{% endif %}>Students</option>
+                                    <option value="Unemployed" {% if request.form.get('occupation_type') == 'Unemployed' %}selected{% endif %}>Unemployed</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="days_employed">Days Employed</label>
+                                <input type="number" name="days_employed" id="days_employed" placeholder="e.g. 365" value="{{ request.form.get('days_employed', '') }}" required>
+                            </div>
+
+                        </div>
+
+                        <button type="submit" class="btn-submit">Analyze Transaction</button>
+                    </form>
+                </div>
+
+            </div>
+
+            <!-- Right results panel wrapper -->
+            {% if show_results %}
+            <div class="results-column">
+                
+                <!-- 1. Risk Overview Card (Row 1) -->
+                <div class="risk-overview-card">
+                    <div class="overview-left">
+                        <div class="radial-gauge">
+                            <svg viewBox="0 0 120 120">
+                                <circle cx="60" cy="60" r="50" class="gauge-bg" />
+                                <circle cx="60" cy="60" r="50" class="gauge-fill {% if 'Low Risk' in prediction_text %}low{% elif 'Medium Risk' in prediction_text %}medium{% else %}high{% endif %}" 
+                                        style="stroke-dasharray: 314; stroke-dashoffset: calc(314 - (314 * {{ risk_score }}) / 100);" />
+                            </svg>
+                            <div class="gauge-text">
+                                <span class="gauge-score">{{ risk_score }}%</span>
+                            </div>
+                        </div>
+                        <div class="overview-status">
+                            <span class="overview-label">Risk Status</span>
+                            <h2 class="overview-val {% if 'Low Risk' in prediction_text %}color-low{% elif 'Medium Risk' in prediction_text %}color-medium{% else %}color-high{% endif %}">
+                                {{ prediction_text }}
+                            </h2>
+                            <p class="overview-desc">Based on ML ensemble prediction and rule override analysis.</p>
+                        </div>
                     </div>
                     
-                    <div class="risk-divider"></div>
-                    
-                    <div class="risk-category-label">RISK CATEGORY</div>
-                    <div class="risk-category-value 
-                        {% if 'Low Risk' in prediction_text %}color-low
-                        {% elif 'Medium Risk' in prediction_text %}color-medium
-                        {% else %}color-high{% endif %}">
-                        {{ prediction_text }}
+                    <div class="overview-right">
+                        <button type="button" class="btn-action btn-ai" id="analyzeAiBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                            Analyze with AI
+                        </button>
+                        {% if transaction_id %}
+                        <div class="action-row">
+                            <a href="/export_pdf/{{ transaction_id }}" target="_blank" class="btn-action btn-pdf">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                PDF
+                            </a>
+                            <button type="button" class="btn-action btn-email" onclick="openEmailModal({{ transaction_id }})">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                Email
+                            </button>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
-                <!-- 2. The SHAP Waterfall Plot -->
-                <div class="shap-card">
-                    <h3>Feature Impact (SHAP)</h3>
-                    <img src="{{ url_for('static', filename='local_shap.png') }}?v={{ range(1, 1000000) | random }}" alt="Local SHAP Waterfall" style="max-width: 100%; height: auto; border-radius: 6px;">
+                <!-- 2. Detailed Grid Card (Row 2) -->
+                <div class="details-grid">
+                    
+                    <!-- AI Decision Explanation -->
+                    <div class="details-card">
+                        <h3><i data-lucide="brain-circuit"></i> Decision Explanation</h3>
+                        <div class="ai-reason-content">
+                            {% if risk_reason %}
+                                {{ risk_reason | safe }}
+                            {% else %}
+                                <p style="color: var(--text-muted);">No decision narrative generated.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- SHAP Waterfall Plot -->
+                    <div class="details-card">
+                        <h3><i data-lucide="activity"></i> Feature Impact (SHAP)</h3>
+                        <div class="shap-plot-container" onclick="openShapZoom(this.querySelector('img').src)">
+                            <img src="{{ url_for('static', filename='local_shap.png') }}?v={{ range(1, 1000000) | random }}" alt="Local SHAP Waterfall" style="max-width: 100%; height: auto; border-radius: 6px;">
+                        </div>
+                    </div>
+
                 </div>
 
-                <!-- 3. The Human-Readable Reason -->
-                {% if risk_reason %}
-                <div class="ai-reason-box">
-                    {{ risk_reason | safe }}
-                </div>
-                {% endif %}
-
-                <!-- 4. Analyze With AI Button -->
-                <button type="button" class="btn-analyze-ai" id="analyzeAiBtn">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                    Analyze With AI
-                </button>
-
-                {% if transaction_id %}
-                <div style="display: flex; gap: 0.8rem; margin-top: 0.8rem;">
-                    <a href="/export_pdf/{{ transaction_id }}" target="_blank" class="btn-pdf-report" style="margin-top:0; flex:1;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                        Download PDF
-                    </a>
-                    <button type="button" class="btn-email-report" onclick="openEmailModal({{ transaction_id }})" style="margin-top:0; flex:1;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                        Email Report
-                    </button>
-                </div>
-                {% endif %}
-
-                <!-- 5. What-If Scenario Simulator -->
-                <div class="simulator-card">
+                <!-- 3. What-If Scenario Simulator (Row 3) -->
+                <div class="simulator-card" style="margin-top: 0.5rem;">
                     <h3>🔬 What-If Scenario Simulator</h3>
-                    <div class="sim-slider-group">
-                        <div class="sim-slider-label">Income (₹) <span id="sim-income-val">{{ request.form.get('income', 150000) }}</span></div>
-                        <input type="range" id="sim-income" min="10000" max="1000000" step="10000" value="{{ request.form.get('income', 150000) }}">
+                    <div class="sim-sliders-grid">
+                        <div class="sim-slider-group">
+                            <div class="sim-slider-label">Income (₹) <span id="sim-income-val">{{ request.form.get('income', 150000) }}</span></div>
+                            <input type="range" id="sim-income" min="10000" max="1000000" step="10000" value="{{ request.form.get('income', 150000) }}">
+                        </div>
+                        <div class="sim-slider-group">
+                            <div class="sim-slider-label">Credit Amount (₹) <span id="sim-credit-val">{{ request.form.get('credit', 300000) }}</span></div>
+                            <input type="range" id="sim-credit" min="10000" max="2000000" step="10000" value="{{ request.form.get('credit', 300000) }}">
+                        </div>
+                        <div class="sim-slider-group">
+                            <div class="sim-slider-label">Age (years) <span id="sim-age-val">{{ request.form.get('age', 30) }}</span></div>
+                            <input type="range" id="sim-age" min="18" max="70" step="1" value="{{ request.form.get('age', 30) }}">
+                        </div>
+                        <div class="sim-slider-group">
+                            <div class="sim-slider-label">Days Employed <span id="sim-days-val">{{ request.form.get('days_employed', 365) }}</span></div>
+                            <input type="range" id="sim-days" min="0" max="10000" step="30" value="{{ request.form.get('days_employed', 365) }}">
+                        </div>
                     </div>
-                    <div class="sim-slider-group">
-                        <div class="sim-slider-label">Credit Amount (₹) <span id="sim-credit-val">{{ request.form.get('credit', 300000) }}</span></div>
-                        <input type="range" id="sim-credit" min="10000" max="2000000" step="10000" value="{{ request.form.get('credit', 300000) }}">
-                    </div>
-                    <div class="sim-slider-group">
-                        <div class="sim-slider-label">Age (years) <span id="sim-age-val">{{ request.form.get('age', 30) }}</span></div>
-                        <input type="range" id="sim-age" min="18" max="70" step="1" value="{{ request.form.get('age', 30) }}">
-                    </div>
-                    <div class="sim-slider-group">
-                        <div class="sim-slider-label">Days Employed <span id="sim-days-val">{{ request.form.get('days_employed', 365) }}</span></div>
-                        <input type="range" id="sim-days" min="0" max="10000" step="30" value="{{ request.form.get('days_employed', 365) }}">
-                    </div>
-                    <div class="sim-result">
-                        <div class="sim-result-score" id="sim-score">--</div>
-                        <div class="sim-result-category" id="sim-category">Adjust sliders to simulate</div>
-                        <div class="sim-loading" id="sim-loading" style="display:none">Recalculating...</div>
+                    <div class="sim-result-row">
+                        <div class="sim-result">
+                            <div class="sim-result-score" id="sim-score">--</div>
+                            <div class="sim-result-category" id="sim-category">Adjust sliders to simulate</div>
+                            <div class="sim-loading" id="sim-loading" style="display:none">Recalculating...</div>
+                        </div>
                     </div>
                 </div>
 
             </div>
             {% endif %}
 
-            <!-- Right Panel (The Form) -->
-            <div class="form-panel">
-                <div class="card-container" style="max-width: 100%; padding: 0;">
-                    <div class="card">
-                        <form action="/predict" method="post">
-                    <div class="form-grid">
-                        
-                        <div class="input-group">
-                            <label for="contract_type">Contract Type</label>
-                            <select name="contract_type" id="contract_type" required>
-                                <option value="cash" {% if request.form.get('contract_type') == 'cash' %}selected{% endif %}>Cash loans</option>
-                                <option value="revolving" {% if request.form.get('contract_type') == 'revolving' %}selected{% endif %}>Revolving loans</option>
-                            </select>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="age">Age</label>
-                            <input type="number" name="age" min="18" max="100" value="{{ request.form.get('age', '') }}" required>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="credit">Credit Amount</label>
-                            <input type="number" step="0.01" name="credit" id="credit" placeholder="e.g. 500000" value="{{ request.form.get('credit', '') }}" required>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="income">Total Income</label>
-                            <input type="number" step="0.01" name="income" id="income" placeholder="e.g. 150000" value="{{ request.form.get('income', '') }}" required>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="income_type">Income Type</label>
-                            <select name="income_type" id="income_type" required>
-                                <option value="working" {% if request.form.get('income_type') == 'working' %}selected{% endif %}>Working</option>
-                                <option value="state servant" {% if request.form.get('income_type') == 'state servant' %}selected{% endif %}>State servant</option>
-                                <option value="commercial associate" {% if request.form.get('income_type') == 'commercial associate' %}selected{% endif %}>Commercial associate</option>
-                                <option value="pensioner" {% if request.form.get('income_type') == 'pensioner' %}selected{% endif %}>Pensioner</option>
-                                <option value="student" {% if request.form.get('income_type') == 'student' %}selected{% endif %}>Student</option>
-                            </select>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="education">Education Type</label>
-                            <select name="education" id="education" required>
-                                <option value="higher education" {% if request.form.get('education') == 'higher education' %}selected{% endif %}>Higher education</option>
-                                <option value="secondary" {% if request.form.get('education') == 'secondary' %}selected{% endif %}>Secondary / secondary special</option>
-                                <option value="incomplete higher" {% if request.form.get('education') == 'incomplete higher' %}selected{% endif %}>Incomplete higher</option>
-                                <option value="lower secondary" {% if request.form.get('education') == 'lower secondary' %}selected{% endif %}>Lower secondary</option>
-                            </select>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="occupation_type">Occupation Type</label>
-                            <select name="occupation_type" id="occupation_type" required>
-                                <option value="Managers" {% if request.form.get('occupation_type') == 'Managers' %}selected{% endif %}>Managers</option>
-                                <option value="IT Staff" {% if request.form.get('occupation_type') == 'IT Staff' %}selected{% endif %}>IT Staff</option>
-                                <option value="Accountants" {% if request.form.get('occupation_type') == 'Accountants' %}selected{% endif %}>Accountants</option>
-                                <option value="Laborers" {% if request.form.get('occupation_type') == 'Laborers' %}selected{% endif %}>Laborers</option>
-                                <option value="Drivers" {% if request.form.get('occupation_type') == 'Drivers' %}selected{% endif %}>Drivers</option>
-                                <option value="Students" {% if request.form.get('occupation_type') == 'Students' %}selected{% endif %}>Students</option>
-                                <option value="Unemployed" {% if request.form.get('occupation_type') == 'Unemployed' %}selected{% endif %}>Unemployed</option>
-                            </select>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="days_employed">Days Employed</label>
-                            <input type="number" name="days_employed" id="days_employed" placeholder="e.g. 365" value="{{ request.form.get('days_employed', '') }}" required>
-                        </div>
-
-                    </div>
-
-                    <button type="submit" class="btn-submit">Analyze Transaction</button>
-                </form>
-
-            </div>
-        </div>
-    </div> <!-- End Form Panel -->
-    
-    </div> <!-- End Analyzer Layout -->
+        </div> <!-- End Analyzer Layout -->
 
     </div> <!-- End Main Content -->
 
@@ -1164,6 +1568,52 @@
         // Run simulation immediately on page load
         runSimulation();
         {% endif %}
+    </script>
+
+    <!-- SHAP Zoom Overlay -->
+    <div class="shap-zoom-overlay" id="shapZoomOverlay" onclick="closeShapZoomOnOutsideClick(event)">
+        <div class="zoom-header">
+            <button class="zoom-back-btn" onclick="closeShapZoom()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Back to Dashboard
+            </button>
+            <h2 style="margin: 0; font-size: 1.15rem; font-weight: 600;">Feature Impact (SHAP) — Detailed View</h2>
+        </div>
+        <div class="zoom-body">
+            <img id="zoomedShapImg" src="" alt="Enlarged SHAP Waterfall" onclick="event.stopPropagation()">
+        </div>
+    </div>
+
+    <script>
+        function openShapZoom(imgSrc) {
+            const overlay = document.getElementById('shapZoomOverlay');
+            const zoomedImg = document.getElementById('zoomedShapImg');
+            zoomedImg.src = imgSrc;
+            overlay.style.display = 'flex';
+            // Force reflow
+            overlay.offsetHeight;
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeShapZoom() {
+            const overlay = document.getElementById('shapZoomOverlay');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+            setTimeout(() => {
+                if (!overlay.classList.contains('active')) {
+                    overlay.style.display = 'none';
+                }
+            }, 300);
+        }
+
+        function closeShapZoomOnOutsideClick(event) {
+            closeShapZoom();
+        }
+    </script>
+
+    <script>
+        lucide.createIcons();
     </script>
 </body>
 </html>
